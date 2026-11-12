@@ -134,12 +134,16 @@ function renderSpecials(){
 }
 function fillSettings(){
   const s=state.settings;
-  const hours=sel=>{let h="";for(let k=5;k<=23;k++)h+=`<option value="${k}">${to12(pad(k)+":00")}</option>`;$(sel).innerHTML=h};
-  hours("setOpen");hours("setClose");
   $("setType").innerHTML=Object.entries(TYPES).map(([k,t])=>`<option value="${k}">${t.label}</option>`).join("");$("setType").value=s.type||"barber";
-  $("setName").value=s.name;$("setArea").value=s.area;$("setWa").value=s.whatsapp;$("setDep").value=s.deposit;$("setOpen").value=s.open;$("setClose").value=s.close;
+  $("setName").value=s.name;$("setArea").value=s.area;$("setWa").value=s.whatsapp;$("setDep").value=s.deposit;renderHours();
   $("setLoy").value=s.loyaltyEvery;$("setLoyR").value=s.loyaltyReward;$("setCome").value=s.comeBack;
   $("bookLink").textContent=BOOK_LINK;
+}
+function renderHours(){
+  const s=state.settings;
+  const opts=v=>{let h="";for(let m=300;m<=1440;m+=30){const x=m/60;h+=`<option value="${x}"${Math.abs(+v-x)<.01?" selected":""}>${m===1440?"Midnight":to12(hm(x))}</option>`}return h};
+  $("setHours").innerHTML=[1,2,3,4,5,6,0].map(d=>{const on=s.openDays.includes(d),[o,c]=hoursOn(s,d),day=DAYNAMES[d].slice(0,-1);
+    return `<div class="hrow"><label class="check"><input type="checkbox" data-hday="${d}" data-hf="on"${on?" checked":""} aria-label="Open on ${day}">${day.slice(0,3)}</label><select data-hday="${d}" data-hf="o" aria-label="${day} opens at"${on?"":" disabled"}>${opts(o)}</select><span class="note">to</span><select data-hday="${d}" data-hf="c" aria-label="${day} closes at"${on?"":" disabled"}>${opts(c)}</select></div>`}).join("");
 }
 function render(){
   fillSelect($("fService"),serviceOptions());fillSelect($("qService"),serviceOptions());
@@ -251,6 +255,10 @@ $("mCopy").addEventListener("click",()=>{const t=$("mText").textContent;try{navi
 const NUMERIC=["deposit","comeBack","loyaltyEvery","open","close"];
 $("pane-setup").addEventListener("change",e=>{
   const t=e.target;
+  if(t.dataset.hday!==undefined){const d=+t.dataset.hday,s=state.settings;
+    if(t.dataset.hf==="on")s.openDays=t.checked?[...new Set(s.openDays.concat(d))].sort((a,b)=>a-b):s.openDays.filter(x=>x!==d);
+    else{const cur=hoursOn(s,d);cur[t.dataset.hf==="o"?0:1]=+t.value;if(cur[1]<=cur[0]){toast("Closing time has to be after opening time");renderHours();return}s.dayHours={...(s.dayHours||{}),[d]:cur}}
+    save();renderHours();toast("Saved");return}
   if(t.dataset.set){const k=t.dataset.set;state.settings[k]=NUMERIC.includes(k)?Math.max(0,+t.value||0):t.value.trim();save();render();toast("Saved");return}
   if(t.dataset.svc!==undefined){const s=state.services[+t.dataset.svc],f=t.dataset.f;if(!s)return;
     if(f==="name"){const old=s.name,nv=t.value.trim();if(!nv){t.value=old;return}s.name=nv;state.specials.forEach(sp=>{if(sp.service===old)sp.service=nv;if(sp.includes)sp.includes=sp.includes.map(n=>n===old?nv:n)})}

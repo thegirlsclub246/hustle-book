@@ -52,8 +52,9 @@ function renderBook(){
   $("bkServices").innerHTML=allServices().filter(s=>+s.price>0).map(s=>`<button type="button" class="choice" data-sv="${esc(s.name)}" aria-pressed="${bk.service===s.name}"><span>${esc(s.name)}</span><b>${money(s.price)}</b><small>${s.bundle?esc(s.includes.join(" + ")):s.mins+" min"}</small></button>`).join("")||`<p class="note">This business hasn't added any services yet.</p>`;
   renderCal();
   const times=[];
-  for(let m=S.open*60;m<S.close*60;m+=30){if(bk.date===TODAY&&m<=now.getHours()*60+now.getMinutes())continue;times.push(pad(Math.floor(m/60))+":"+pad(m%60))}
-  if(bk.time&&isTaken(bk.time))bk.time=null;
+  const [o,c]=bk.date?hoursOn(S,dateObj(bk.date).getDay()):[+S.open,+S.close],len=bk.service?minsOf(bk.service):30;
+  for(let m=o*60;m+Math.min(len,c*60-o*60)<=c*60;m+=30){if(bk.date===TODAY&&m<=now.getHours()*60+now.getMinutes())continue;times.push(pad(Math.floor(m/60))+":"+pad(m%60))}
+  if(bk.time&&(isTaken(bk.time)||!times.includes(bk.time)))bk.time=null;
   const loading=bk.date&&busyFor===bk.date&&!busy.length&&false;
   $("bkTimes").innerHTML=!bk.date?`<span class="note">Pick a day first.</span>`:times.length?times.map(t=>{const taken=isTaken(t);return `<button type="button" class="chip" data-time="${t}" aria-pressed="${bk.time===t}"${taken?` disabled aria-label="${to12(t)}, taken"`:""}>${to12(t)}</button>`}).join(""):`<span class="note">No times left today. Try another day.</span>`;
   $("bkTimeNote").textContent=bk.date&&busy.length?"Crossed-out times are already booked.":"";

@@ -18,6 +18,11 @@ function to12(t){let [h,m]=t.split(":").map(Number);const ap=h>=12?"pm":"am";h=h
 const first=n=>String(n).trim().split(/\s+/)[0];
 const newId=p=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 
+// Opening hours for a day of the week (0 = Sunday). dayHours overrides the default open/close for that day.
+// Hours are decimals, so 16.5 means 4:30pm.
+function hoursOn(S,dow){const h=S.dayHours&&S.dayHours[dow];return h&&h.length===2?[+h[0],+h[1]]:[+S.open,+S.close]}
+const hm=x=>pad(Math.floor(x))+":"+pad(Math.round((x%1)*60));
+
 const DEFAULT_SETTINGS={type:"barber",name:"",area:"",whatsapp:"",deposit:0,comeBack:21,loyaltyEvery:10,loyaltyReward:"free",open:9,close:19,openDays:[1,2,3,4,5,6]};
 
 // ---------- services, specials, loyalty ----------
