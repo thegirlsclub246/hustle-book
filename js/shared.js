@@ -23,7 +23,15 @@ const newId=p=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 function hoursOn(S,dow){const h=S.dayHours&&S.dayHours[dow];return h&&h.length===2?[+h[0],+h[1]]:[+S.open,+S.close]}
 const hm=x=>pad(Math.floor(x))+":"+pad(Math.round((x%1)*60));
 
-const DEFAULT_SETTINGS={type:"barber",name:"",area:"",whatsapp:"",deposit:0,comeBack:21,loyaltyEvery:10,loyaltyReward:"free",open:9,close:19,openDays:[1,2,3,4,5,6]};
+const DEFAULT_SETTINGS={type:"barber",name:"",area:"",whatsapp:"",deposit:0,payLink:"",payDetails:"",instant:false,changeHours:24,comeBack:21,loyaltyEvery:10,loyaltyReward:"free",open:9,close:19,openDays:[1,2,3,4,5,6]};
+
+// ---------- deposits and WhatsApp ----------
+// How to pay the deposit, for messages: "here: https://paypal.me/x" or "by bank transfer to RBC 123…".
+const safeUrl=u=>/^https:\/\/[^\s"'<>]+$/i.test(String(u||"").trim())?String(u).trim():"";
+function depositHow(S){const l=safeUrl(S.payLink);if(l)return "here: "+l;return S.payDetails?"by bank transfer to "+S.payDetails:"by bank transfer"}
+// A wa.me link that opens WhatsApp with the message typed in. Empty if the number is missing or too short.
+function waLink(phone,text){const n=waNumber(phone);return n.length>=10?"https://wa.me/"+n+"?text="+encodeURIComponent(text):""}
+const stars=n=>"★★★★★".slice(0,n)+"☆☆☆☆☆".slice(0,5-n);
 
 // ---------- services, specials, loyalty ----------
 const live=s=>s.active&&(!s.ends||s.ends>=TODAY);

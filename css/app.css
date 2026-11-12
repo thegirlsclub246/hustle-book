@@ -172,3 +172,19 @@ button.wa{width:100%;padding:12px;border-radius:10px;font-size:15px;background:v
 .hrow{display:grid;grid-template-columns:minmax(64px,auto) 1fr auto 1fr;gap:8px;align-items:center}
 .hrow select:disabled{opacity:.45}
 @media (max-width:420px){.hrow{gap:6px}.hrow select{padding-left:6px;padding-right:6px}}
+/* ---- photos and reviews ---- */
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
+.gallery figure{position:relative;margin:0}
+.gallery img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;display:block}
+.gallery figure button{position:absolute;top:4px;right:4px;padding:2px 7px;background:var(--surface)}
+.starline{color:var(--gold);letter-spacing:1px;font-weight:400;white-space:nowrap}
+.showcase{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:4px}
+.showcase img{width:150px;height:150px;flex:none;object-fit:cover;border-radius:12px;scroll-snap-align:start}
+.revs{display:flex;flex-direction:column;gap:8px}
+.rev{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px;font-size:14px;display:flex;flex-direction:column;gap:4px}
+.rev b{font-weight:600}
+.starpick{display:flex;gap:4px}
+.starpick button{font-size:26px;line-height:1;padding:4px 8px;color:var(--muted);background:var(--surface)}
+.starpick button[aria-pressed="true"]{color:var(--gold);border-color:var(--gold)}
+.paybox{background:var(--info-bg);color:var(--ink);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;font-size:14px}
+.ok-box .paybox{color:var(--ink)}

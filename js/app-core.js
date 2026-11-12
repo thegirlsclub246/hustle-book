@@ -3,13 +3,24 @@ function copyText(text,box){
   if(box){box.textContent=text;box.hidden=false}
   try{navigator.clipboard.writeText(text).then(()=>toast("Message copied. Paste it in WhatsApp."),()=>toast("Select the message and copy it"))}catch(e){toast("Select the message and copy it")}
 }
+// Opens WhatsApp with the message ready to send. Falls back to copying when there's no number.
+function sendWa(phone,text,box){
+  const url=waLink(phone,text);
+  if(!url){copyText(text,box);return false}
+  if(box)box.hidden=true;
+  window.open(url,"_blank","noopener");return true;
+}
+const phoneOf=b=>b.phone||(findClient(b.name)||{}).phone||"";
+const manageLink=id=>BOOK_LINK+"&r="+id;
+const reviewLink=()=>BOOK_LINK+"&review=1";
 function bookingReminder(b){
   const when=b.date===TODAY?"today":b.date===addDays(1)?"tomorrow":"on "+prettyDate(b.date);
   let t=`Hi ${first(b.name)}, just a reminder you're booked with ${state.settings.name} ${when} at ${to12(b.time)} for a ${b.service.toLowerCase()} (${money(b.price)}).`;
-  const dep=+state.settings.deposit;if(dep&&!b.deposit)t+=` To hold your slot, please send the ${money(dep)} deposit by bank transfer.`;
-  return t+" Reply if you need to change the time. See you then!";
+  const dep=+state.settings.deposit;if(dep&&!b.deposit)t+=` To hold your slot, please send the ${money(dep)} deposit ${depositHow(state.settings)}.`;
+  return t+(b.req?` Need to change or cancel? Use this link: ${manageLink(b.req)}`:" Reply if you need to change the time.")+" See you then!";
 }
-function paymentReminder(b){return `Hi ${first(b.name)}, hope you good. Just a reminder about the ${money(owedAmt(b))} for the ${b.service.toLowerCase()} on ${prettyDate(b.date)}. You can send it by bank transfer or bring cash next time. Thanks!`}
+function paymentReminder(b){return `Hi ${first(b.name)}, hope you good. Just a reminder about the ${money(owedAmt(b))} for the ${b.service.toLowerCase()} on ${prettyDate(b.date)}. You can send it ${depositHow(state.settings)}, or bring cash next time. Thanks!`}
+function reviewMsg(b){return `Hi ${first(b.name)}, thanks for coming to ${state.settings.name}! If you have a minute, a quick review really helps my business: ${reviewLink()}`}
 function comeBackMsg(c,s){
   const days=daysBetween(s.last,TODAY),w=Math.round(days/7);
   let t=`Hi ${first(c.name)}, it's been ${w>=2?w+" weeks":days+" days"} since your last ${(s.usual||"visit").toLowerCase()} at ${state.settings.name}. Want me to hold a spot for you this week? Pick a time here: ${BOOK_LINK}`;
@@ -18,7 +29,7 @@ function comeBackMsg(c,s){
 }
 
 // ---------- rendering ----------
-const STATUS={booked:["Booked","p-booked"],paid:["Paid","p-paid"],owed:["Owes","p-owed"],noshow:["No-show","p-noshow"]};
+const STATUS={booked:["Booked","p-booked"],paid:["Paid","p-paid"],owed:["Owes","p-owed"],noshow:["No-show","p-noshow"],cancelled:["Cancelled","p-noshow"]};
 function rowHTML(b,opts={}){
   let [lbl,cls]=STATUS[b.status];
   if(b.status==="paid"&&b.method)lbl+=" · "+b.method;
@@ -27,13 +38,15 @@ function rowHTML(b,opts={}){
   if(b.reward)tags.push(`<span class="tag gold">Loyalty reward</span>`);
   if(b.deposit)tags.push(`<span class="tag">${b.status==="noshow"?"Deposit kept":"Deposit in"} ${money(b.deposit)}</span>`);
   if(b.status==="owed"&&b.deposit)tags.push(`<span class="tag gold">Balance ${money(owedAmt(b))}</span>`);
-  let a="";const id=b.id;
+  if(b.status==="booked"&&b.reminded)tags.push(`<span class="tag">Reminded</span>`);
+  if(b.status==="cancelled")tags.push(`<span class="tag gold">Client cancelled</span>`);
+  let a="";const id=b.id,wa=waNumber(phoneOf(b)).length>=10;
   if(b.status==="booked"){
     a=`<button data-a="paid" data-id="${id}">Paid</button><button data-a="owed" data-id="${id}">Done, owes</button><button data-a="noshow" data-id="${id}">No-show</button>`;
     if(+state.settings.deposit&&!b.deposit)a+=`<button data-a="dep" data-id="${id}">Deposit in</button>`;
-    if(b.date>=TODAY)a+=`<button data-a="remind" data-id="${id}"${b.date===addDays(1)?' class="primary"':""}>Reminder</button>`;
-  }else if(b.status==="owed")a=`<button data-a="paid" data-id="${id}">Mark paid</button><button data-a="payrem" data-id="${id}">Payment reminder</button>`;
-  else if(b.status==="paid")a=METHODS.map(m=>`<button class="chip" data-a="method" data-m="${m}" data-id="${id}" aria-pressed="${b.method===m}">${m}</button>`).join("")+`<button data-a="booked" data-id="${id}">Undo</button>`;
+    if(b.date>=TODAY)a+=`<button data-a="remind" data-id="${id}"${b.date===addDays(1)&&!b.reminded?' class="primary"':""}>${wa?"Remind on WhatsApp":"Reminder"}</button>`;
+  }else if(b.status==="owed")a=`<button data-a="paid" data-id="${id}">Mark paid</button><button data-a="payrem" data-id="${id}">${wa?"Payment reminder on WhatsApp":"Payment reminder"}</button>`;
+  else if(b.status==="paid")a=METHODS.map(m=>`<button class="chip" data-a="method" data-m="${m}" data-id="${id}" aria-pressed="${b.method===m}">${m}</button>`).join("")+`<button data-a="review" data-id="${id}">${b.reviewAsked?"Asked for review ✓":"Ask for a review"}</button><button data-a="booked" data-id="${id}">Undo</button>`;
   else a=`<button data-a="booked" data-id="${id}">Undo</button>`;
   a+=`<button data-a="del" data-id="${id}" class="danger">Remove</button>`;
   const c=findClient(b.name);
@@ -65,6 +78,14 @@ function renderToday(){
     return `<div class="row"><div class="time">#${k+1}</div><div class="who"><strong>${esc(q.name)}</strong><span>${esc(q.service)} · ${k===0?"next up":"about "+w+" min wait"}</span>${c&&c.notes?`<em class="cnote">${esc(c.notes)}</em>`:""}</div><div class="right"><span class="price">${money(priceOf(q.service))}</span></div>
     <div class="actions"><button class="primary" data-q="start" data-id="${q.id}">Start now</button><button data-q="up" data-id="${q.id}"${k===0?" disabled":""}>Move up</button><button data-q="rm" data-id="${q.id}" class="danger">Left</button></div></div>`}).join(""):`<div class="empty">Nobody waiting. Add walk-ins below.</div>`;
   $("qWait").textContent=state.queue.length?`${state.queue.length} waiting · about ${wait} min of work`:"";
+  // tomorrow's reminders
+  const tm=items.filter(i=>i.date===addDays(1)&&i.status==="booked"),sent=tm.filter(i=>i.reminded).length;
+  $("remSection").hidden=!tm.length;
+  $("remCount").textContent=tm.length?`${sent} of ${tm.length} reminded`:"";
+  $("remList").innerHTML=tm.map(b=>{const ph=phoneOf(b),ok=waNumber(ph).length>=10;
+    return `<div class="row"><div class="time">${to12(b.time)}</div><div class="who"><strong>${esc(b.name)}</strong><span>${esc(b.service)}${ok?"":" · no WhatsApp number saved"}</span></div>
+    <div class="right">${b.reminded?`<span class="pill p-paid">Sent</span>`:""}</div>
+    <div class="actions"><button data-a="remind" data-id="${b.id}"${b.reminded?"":' class="primary"'}>${b.reminded?"Send again":ok?"Send on WhatsApp":"Copy reminder"}</button></div><div class="msg" hidden></div></div>`}).join("");
   const t=items.filter(i=>i.date===TODAY);
   $("todayCount").textContent=t.length?`${t.length} booking${t.length>1?"s":""} · ${money(sum(t.filter(i=>i.status!=="noshow"),i=>i.price))} if all pay`:"";
   $("todayList").innerHTML=t.length?t.map(b=>rowHTML(b)).join(""):`<div class="empty">Nothing booked today. Add one below.</div>`;
@@ -135,7 +156,7 @@ function renderSpecials(){
 function fillSettings(){
   const s=state.settings;
   $("setType").innerHTML=Object.entries(TYPES).map(([k,t])=>`<option value="${k}">${t.label}</option>`).join("");$("setType").value=s.type||"barber";
-  $("setName").value=s.name;$("setArea").value=s.area;$("setWa").value=s.whatsapp;$("setDep").value=s.deposit;renderHours();
+  $("setName").value=s.name;$("setArea").value=s.area;$("setWa").value=s.whatsapp;$("setDep").value=s.deposit;$("setPayLink").value=s.payLink||"";$("setPayDetails").value=s.payDetails||"";$("setInstant").checked=!!s.instant;$("setChange").value=s.changeHours;renderHours();
   $("setLoy").value=s.loyaltyEvery;$("setLoyR").value=s.loyaltyReward;$("setCome").value=s.comeBack;
   $("bookLink").textContent=BOOK_LINK;
 }
@@ -164,8 +185,9 @@ document.addEventListener("click",e=>{
   const id=+btn.dataset.id,a=btn.dataset.a,b=state.items.find(i=>i.id===id);if(!b)return;
   const box=btn.closest(".row").querySelector(".msg");
   if(a==="del"){state.items=state.items.filter(i=>i.id!==id);save();render();toast("Booking removed");return}
-  if(a==="remind"){copyText(bookingReminder(b),box);return}
-  if(a==="payrem"){copyText(paymentReminder(b),box);return}
+  if(a==="remind"){sendWa(phoneOf(b),bookingReminder(b),box);b.reminded=true;save();setTimeout(render,300);return}
+  if(a==="payrem"){sendWa(phoneOf(b),paymentReminder(b),box);return}
+  if(a==="review"){sendWa(phoneOf(b),reviewMsg(b),box);b.reviewAsked=true;save();setTimeout(render,300);return}
   if(a==="dep"){b.deposit=+state.settings.deposit;save();render();toast(`Deposit of ${money(b.deposit)} recorded`);return}
   if(a==="method"){b.method=b.method===btn.dataset.m?null:btn.dataset.m;save();render();toast(b.method?"Paid by "+b.method.toLowerCase():"Payment method cleared");return}
   if(a==="booked")b.method=null;
@@ -231,7 +253,7 @@ $("qList").addEventListener("click",e=>{
 });
 
 // ---------- clients ----------
-$("dueList").addEventListener("click",e=>{const b=e.target.closest("[data-due]");if(!b)return;const c=state.clients.find(x=>x.id===b.dataset.due);if(c)copyText(comeBackMsg(c,clientStats(c)),b.closest(".row").querySelector(".msg"))});
+$("dueList").addEventListener("click",e=>{const b=e.target.closest("[data-due]");if(!b)return;const c=state.clients.find(x=>x.id===b.dataset.due);if(c)sendWa(c.phone,comeBackMsg(c,clientStats(c)),b.closest(".row").querySelector(".msg"))});
 function shrink(file){return new Promise((res,rej)=>{const r=new FileReader();r.onerror=rej;r.onload=()=>{const img=new Image();img.onerror=rej;img.onload=()=>{const k=Math.min(1,600/Math.max(img.width,img.height));const cv=document.createElement("canvas");cv.width=Math.round(img.width*k);cv.height=Math.round(img.height*k);cv.getContext("2d").drawImage(img,0,0,cv.width,cv.height);res(cv.toDataURL("image/jpeg",0.72))};img.src=r.result};r.readAsDataURL(file)})}
 $("clientList").addEventListener("click",e=>{const t=e.target.closest("[data-open],[data-rmphoto],[data-bookagain],[data-invoice]");if(!t)return;
   if(t.dataset.invoice){showTab("money");$("invClient").value=t.dataset.invoice;$("invPeriod").value="month";renderInvoice();$("invForm").scrollIntoView({behavior:"smooth",block:"start"});return}
@@ -252,14 +274,16 @@ $("mNext").addEventListener("click",()=>{if(monthOffset<0){monthOffset++;renderM
 $("mCopy").addEventListener("click",()=>{const t=$("mText").textContent;try{navigator.clipboard.writeText(t).then(()=>toast("Summary copied"),()=>toast("Select the summary and copy it"))}catch(e){toast("Select the summary and copy it")}});
 
 // ---------- setup ----------
-const NUMERIC=["deposit","comeBack","loyaltyEvery","open","close"];
+const NUMERIC=["deposit","comeBack","loyaltyEvery","open","close","changeHours"];
 $("pane-setup").addEventListener("change",e=>{
   const t=e.target;
   if(t.dataset.hday!==undefined){const d=+t.dataset.hday,s=state.settings;
     if(t.dataset.hf==="on")s.openDays=t.checked?[...new Set(s.openDays.concat(d))].sort((a,b)=>a-b):s.openDays.filter(x=>x!==d);
     else{const cur=hoursOn(s,d);cur[t.dataset.hf==="o"?0:1]=+t.value;if(cur[1]<=cur[0]){toast("Closing time has to be after opening time");renderHours();return}s.dayHours={...(s.dayHours||{}),[d]:cur}}
     save();renderHours();toast("Saved");return}
-  if(t.dataset.set){const k=t.dataset.set;state.settings[k]=NUMERIC.includes(k)?Math.max(0,+t.value||0):t.value.trim();save();render();toast("Saved");return}
+  if(t.dataset.set){const k=t.dataset.set;
+    if(k==="payLink"&&t.value.trim()&&!safeUrl(t.value)){toast("Paste the full link, starting with https://");return}
+    state.settings[k]=t.type==="checkbox"?t.checked:NUMERIC.includes(k)?Math.max(0,+t.value||0):t.value.trim();save();render();toast("Saved");return}
   if(t.dataset.svc!==undefined){const s=state.services[+t.dataset.svc],f=t.dataset.f;if(!s)return;
     if(f==="name"){const old=s.name,nv=t.value.trim();if(!nv){t.value=old;return}s.name=nv;state.specials.forEach(sp=>{if(sp.service===old)sp.service=nv;if(sp.includes)sp.includes=sp.includes.map(n=>n===old?nv:n)})}
     else s[f]=Math.max(0,+t.value||0);

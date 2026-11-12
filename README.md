@@ -50,6 +50,16 @@ insert into public.subscribers (email, status, note) values ('their@email.com', 
 on conflict (email) do update set status = 'free';
 ```
 
+## Booking extras
+
+- **Reminders in one tap.** Reminder, payment and "come back" buttons open WhatsApp with the message typed in. The Today tab lists tomorrow's clients and ticks off who's been reminded.
+- **Deposits.** In Setup → Getting paid deposits, the owner adds a payment link (PayPal.me, WiPay and so on) and/or bank details. Clients see them right after booking, and they go into reminders.
+- **Instant booking.** Setup → Online booking. When it's on, the owner's app accepts any request that doesn't clash, as soon as it opens.
+- **Change or cancel.** Every confirmation has a private link (`book.html?b=<name>&r=<booking id>`) where the client can move or cancel, up to the number of hours before that the owner sets (24 by default). The owner sees "Moved" or "Cancelled" on the Today tab. A deposit already paid moves with the booking.
+- **Photos and reviews.** Up to 6 photos show on the booking page. "Ask for a review" on a paid booking sends `book.html?b=<name>&review=1`. New reviews wait in Setup until the owner taps Show.
+
+These need the latest `supabase/schema.sql`. Run the whole file again in the SQL Editor after updating.
+
 ## Good to know
 
 - Each business's bookings and clients are only visible to its owner. That is enforced by the database rules, not just the app.

@@ -27,7 +27,7 @@
     <button type="button" role="tab" data-tab="today">Today<span class="badge" id="reqBadge" hidden></span></button>
     <button type="button" role="tab" data-tab="clients">Clients<span class="badge" id="dueBadge" hidden></span></button>
     <button type="button" role="tab" data-tab="money">Money</button>
-    <button type="button" role="tab" data-tab="setup">Setup</button>
+    <button type="button" role="tab" data-tab="setup">Setup<span class="badge" id="revBadge" hidden></span></button>
   </nav>
 
 
@@ -36,7 +36,7 @@
   <div class="pane" id="pane-today">
     <section id="reqSection" hidden>
       <div class="sechead"><h2>New booking requests</h2><span class="note" id="reqCount"></span></div>
-      <p class="note">Customers booked these from your link. Accept to add them to your book, then send the confirmation on WhatsApp.</p>
+      <p class="note" id="reqNote"></p>
       <div class="list" id="reqList"></div>
     </section>
     <section class="stats" aria-label="This week">
@@ -55,13 +55,19 @@
       </form>
     </section>
 
+    <section id="remSection" hidden>
+      <div class="sechead"><h2>Remind tomorrow's clients</h2><span class="note" id="remCount"></span></div>
+      <p class="note">Tap each one to open WhatsApp with the reminder already written. Then just press send.</p>
+      <div class="list" id="remList"></div>
+    </section>
+
     <section>
       <div class="sechead"><h2>Today's bookings</h2><span class="note" id="todayCount"></span></div>
       <div class="list" id="todayList"></div>
     </section>
 
     <section>
-      <div class="sechead"><h2>Coming up</h2><span class="note">Tomorrow's bookings are highlighted. Send them a reminder.</span></div>
+      <div class="sechead"><h2>Coming up</h2><span class="note">Tomorrow's bookings are highlighted.</span></div>
       <div class="list" id="upList"></div>
     </section>
 
@@ -88,7 +94,7 @@
   <div class="pane" id="pane-clients" hidden>
     <section>
       <div class="sechead"><h2>Time to come back</h2><span class="note" id="dueNote"></span></div>
-      <p class="note">Clients who haven't been in for a while and have nothing booked. Tap "Message" to copy a friendly WhatsApp nudge.</p>
+      <p class="note">Clients who haven't been in for a while and have nothing booked. Tap "Message" to send a friendly WhatsApp nudge.</p>
       <div class="list" id="dueList"></div>
     </section>
     <section>
@@ -157,6 +163,20 @@
     </section>
 
     <section class="card">
+      <h2>Getting paid deposits</h2>
+      <p class="note full">Clients see this as soon as they book, and it goes in your reminders. Fill in one or both.</p>
+      <label class="full">Payment link (optional)<input id="setPayLink" data-set="payLink" inputmode="url" autocomplete="off" spellcheck="false" placeholder="e.g. https://paypal.me/yourname or your WiPay link"></label>
+      <label class="full">Bank details (optional)<input id="setPayDetails" data-set="payDetails" maxlength="160" placeholder="e.g. RBC, account 1234567, Keisha Brathwaite"></label>
+    </section>
+
+    <section class="card">
+      <h2>Online booking</h2>
+      <label class="full check"><input type="checkbox" id="setInstant" data-set="instant"><span>Confirm bookings straight away. Clients pick a free time and they're booked, no need to accept each one.</span></label>
+      <label class="full">Clients can change or cancel up to this many hours before (0 for any time)<input id="setChange" data-set="changeHours" type="number" min="0" step="1"></label>
+      <p class="note full">Every confirmation you send has a link where the client can move or cancel their booking. You'll see it on your Today tab.</p>
+    </section>
+
+    <section class="card">
       <h2>Days and hours</h2>
       <p class="note full">Tick the days you take bookings. Customers can only pick times inside these hours.</p>
       <div class="full hours" id="setHours"></div>
@@ -189,6 +209,16 @@
         <label>Ends (optional)<input id="spEnds" type="date"></label>
         <button class="primary full" type="submit">Add special</button>
       </form>
+    </section>
+
+    <section class="card" id="showcase">
+      <h2>Photos and reviews</h2>
+      <p class="note full">Show off your work on your booking page. Add up to 6 photos.</p>
+      <div class="full gallery" id="galList"></div>
+      <div class="full btns"><label class="filebtn">Add photos<input type="file" accept="image/*" multiple id="galAdd" hidden></label></div>
+      <div class="full sechead"><h2>Reviews</h2><span class="note" id="revCount"></span></div>
+      <p class="note full">After a visit, tap "Ask for a review" on a paid booking. New reviews wait here until you tap Show.</p>
+      <div class="full list" id="revList"></div>
     </section>
 
     <section class="card">
