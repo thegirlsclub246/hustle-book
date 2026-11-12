@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Book online · Hustle Book</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div class="wrap" id="bookMsgView"><p class="note">Loading…</p></div>
+<div class="wrap" id="bookView" hidden>
+  <div class="biz"><span class="eyebrow">Book online</span><h1 id="bizName"></h1><span class="note" id="bizArea"></span></div>
+  <div class="specials" id="bkSpecials" hidden></div>
+  <section><h2>1. Pick a <span data-t="servicelc">service</span></h2><div class="choices" id="bkServices"></div></section>
+  <section><h2>2. Pick a day</h2><div class="cal" id="bkCal"><div class="calhead"><button type="button" id="calPrev" aria-label="Previous month">‹</button><strong id="calLabel"></strong><button type="button" id="calNext" aria-label="Next month">›</button></div><div class="calgrid" id="calGrid"></div></div><p class="note" id="bkDayNote"></p></section>
+  <section><h2>3. Pick a time</h2><div class="chips" id="bkTimes"></div><p class="note" id="bkTimeNote"></p></section>
+  <section class="summary" id="bkForm">
+    <h2>4. Your details</h2>
+    <label>Your name<input id="bkName" required maxlength="80" placeholder="e.g. Jamal" autocomplete="name"></label>
+    <label>WhatsApp number<input id="bkPhone" required maxlength="30" inputmode="tel" placeholder="246 555 0000" autocomplete="tel"></label>
+    <label>Anything they should know? (optional)<textarea id="bkNote" rows="2" maxlength="500" placeholder="e.g. Coming with my son"></textarea></label>
+    <div class="msg" id="bkMsg">Pick a service, day and time.</div>
+    <p class="err" id="bkErr" hidden></p>
+    <button type="button" class="wa" id="bkSend" disabled>Request this booking</button>
+    <p class="note" id="bkFoot"></p>
+  </section>
+  <div class="ok-box" id="bkDone" hidden></div>
+  <p class="note">Powered by Hustle Book.</p>
+</div>
+<div class="toast" id="toast" hidden></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="js/config.js"></script>
+<script src="js/db.js"></script>
+<script src="js/shared.js"></script>
+<script src="js/book.js"></script>
+</body>
+</html>

@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Hustle Book</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div class="wrap" id="onboard"><p class="note">Loading your book…</p></div>
+<div class="wrap" id="ownerView" hidden>
+  <header>
+    <h1>Hustle <span>Book</span></h1>
+    <div class="date"><span id="today"></span><br><span id="sync" class="sync">Loading…</span></div>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Sections">
+    <button type="button" role="tab" data-tab="today">Today<span class="badge" id="reqBadge" hidden></span></button>
+    <button type="button" role="tab" data-tab="clients">Clients<span class="badge" id="dueBadge" hidden></span></button>
+    <button type="button" role="tab" data-tab="money">Money</button>
+    <button type="button" role="tab" data-tab="setup">Setup</button>
+  </nav>
+
+
+
+  <!-- TODAY -->
+  <div class="pane" id="pane-today">
+    <section id="reqSection" hidden>
+      <div class="sechead"><h2>New booking requests</h2><span class="note" id="reqCount"></span></div>
+      <p class="note">Customers booked these from your link. Accept to add them to your book, then send the confirmation on WhatsApp.</p>
+      <div class="list" id="reqList"></div>
+    </section>
+    <section class="stats" aria-label="This week">
+      <div class="stat earn"><small>Collected this week</small><b id="sEarn">$0</b></div>
+      <div class="stat owed"><small>Still owed</small><b id="sOwed">$0</b></div>
+      <div class="stat ns"><small>No-shows this week</small><b id="sNs">0</b></div>
+    </section>
+
+    <section>
+      <div class="sechead"><h2 data-t="queue">Walk-in queue</h2><span class="note" id="qWait"></span></div>
+      <div class="list" id="qList"></div>
+      <form id="qForm">
+        <label>Name<input id="qName" required placeholder="Who's waiting" list="clientNames" autocomplete="off"></label>
+        <label><span data-t="service">Service</span><select id="qService"></select></label>
+        <button class="full" type="submit">Add to queue</button>
+      </form>
+    </section>
+
+    <section>
+      <div class="sechead"><h2>Today's bookings</h2><span class="note" id="todayCount"></span></div>
+      <div class="list" id="todayList"></div>
+    </section>
+
+    <section>
+      <div class="sechead"><h2>Coming up</h2><span class="note">Tomorrow's bookings are highlighted. Send them a reminder.</span></div>
+      <div class="list" id="upList"></div>
+    </section>
+
+    <section>
+      <h2>Add a booking</h2>
+      <form id="addForm">
+        <label class="full">Client name<input id="fName" required placeholder="Start typing a name" list="clientNames" autocomplete="off"></label>
+        <datalist id="clientNames"></datalist>
+        <div class="full hint" id="fHint" hidden></div>
+        <label>Phone (WhatsApp)<input id="fPhone" inputmode="tel" placeholder="246 555 0000"></label>
+        <label><span data-t="service">Service</span><select id="fService"></select></label>
+        <label>Date<input id="fDate" type="date" required></label>
+        <label>Time<input id="fTime" type="time" required value="10:00"></label>
+        <label class="full" id="fSpecialWrap">Special or discount<select id="fSpecial"></select></label>
+        <label class="full check" id="fRewardWrap" hidden><input type="checkbox" id="fReward"><span id="fRewardText">Use loyalty reward</span></label>
+        <label class="full check" id="fDepWrap"><input type="checkbox" id="fDep"><span id="fDepText">Deposit received</span></label>
+        <label class="full">Price (BBD)<input id="fPrice" type="number" min="0" step="1" required></label>
+        <button class="primary full" type="submit">Add booking</button>
+      </form>
+    </section>
+  </div>
+
+  <!-- CLIENTS -->
+  <div class="pane" id="pane-clients" hidden>
+    <section>
+      <div class="sechead"><h2>Time to come back</h2><span class="note" id="dueNote"></span></div>
+      <p class="note">Clients who haven't been in for a while and have nothing booked. Tap "Message" to copy a friendly WhatsApp nudge.</p>
+      <div class="list" id="dueList"></div>
+    </section>
+    <section>
+      <div class="sechead"><h2>All clients</h2><span class="note" id="clientCount"></span></div>
+      <input id="clientSearch" type="search" placeholder="Search by name or phone">
+      <div class="list" id="clientList"></div>
+    </section>
+  </div>
+
+  <!-- MONEY -->
+  <div class="pane" id="pane-money" hidden>
+    <div class="monthbar"><button type="button" id="mPrev" aria-label="Previous month">‹ Prev</button><h2 id="mLabel"></h2><button type="button" id="mNext" aria-label="Next month">Next ›</button></div>
+    <section class="stats">
+      <div class="stat earn"><small>Collected</small><b id="mColl">$0</b></div>
+      <div class="stat"><small>Visits</small><b id="mVisits">0</b></div>
+      <div class="stat owed"><small>Still owed</small><b id="mOwed">$0</b></div>
+      <div class="stat ns"><small>No-shows</small><b id="mNs">0</b></div>
+      <div class="stat"><small>Deposits kept</small><b id="mKept">$0</b></div>
+      <div class="stat"><small>Discounts given</small><b id="mDisc">$0</b></div>
+    </section>
+    <section><h2>How you got paid</h2><div class="bars" id="mMethods"></div></section>
+    <section><h2>By service</h2><div class="bars" id="mServices"></div></section>
+    <section>
+      <div class="sechead"><h2>Monthly summary</h2><button type="button" id="mCopy">Copy summary</button></div>
+      <p class="note">Handy for NIS, your accountant or a loan application.</p>
+      <div class="msg" id="mText"></div>
+    </section>
+    <section>
+      <h2>Make an invoice</h2>
+      <p class="note">Bill one client for a single visit, a month or any dates you pick. Choose "All clients" for a statement of everything in that period.</p>
+      <form id="invForm">
+        <label class="full">Bill to<select id="invClient"></select></label>
+        <label>Period<select id="invPeriod"><option value="day">One day</option><option value="month" selected>This month</option><option value="last">Last month</option><option value="custom">From and to dates</option></select></label>
+        <label id="invDayWrap">Day<input id="invDay" type="date"></label>
+        <label id="invFromWrap">From<input id="invFrom" type="date"></label>
+        <label id="invToWrap">To<input id="invTo" type="date"></label>
+        <label class="full check"><input type="checkbox" id="invUnpaid">Only show what's still owed</label>
+      </form>
+      <div class="invoice" id="invPreview"></div>
+      <div class="btns"><button type="button" class="primary" id="invPdf" hidden>Save as PDF</button><button type="button" id="invCopy">Copy as text</button></div>
+      <div class="msg" id="invText" hidden></div>
+    </section>
+    <section>
+      <h2>Who owes you</h2>
+      <div class="list" id="owedList"></div>
+    </section>
+  </div>
+
+  <!-- SETUP -->
+  <div class="pane" id="pane-setup" hidden>
+    <section class="linkcard">
+      <h2>Your booking link</h2>
+      <p>Send this to customers or put it in your Instagram bio. They pick a service, day and time, see your specials, and the booking request shows up at the top of your Today tab.</p>
+      <code id="bookLink"></code>
+      <div class="btns"><button type="button" id="copyLink">Copy link</button><a class="btnlink" id="previewBook" target="_blank" rel="noopener" href="book.html">See what clients see</a></div>
+    </section>
+
+    <section class="card">
+      <h2>Your business</h2>
+      <label class="full">Type of business<select id="setType" data-set="type"></select></label>
+      <div class="full btns"><button type="button" id="typeLoad">Load starter services and prices for this type</button></div>
+      <label class="full">Business name<input id="setName" data-set="name"></label>
+      <label class="full">Area and hours (clients see this)<input id="setArea" data-set="area"></label>
+      <label>WhatsApp number<input id="setWa" data-set="whatsapp" inputmode="tel" placeholder="1 246 555 0000"></label>
+      <label>Deposit to hold a slot ($, 0 for none)<input id="setDep" data-set="deposit" type="number" min="0" step="5"></label>
+      <label>Opens at<select id="setOpen" data-set="open"></select></label>
+      <label>Closes at<select id="setClose" data-set="close"></select></label>
+    </section>
+
+    <section class="card">
+      <h2>Loyalty and reminders</h2>
+      <label>Reward after this many visits (0 for none)<input id="setLoy" data-set="loyaltyEvery" type="number" min="0"></label>
+      <label>Reward<select id="setLoyR" data-set="loyaltyReward"><option value="free">Next visit free</option><option value="half">Next visit half price</option></select></label>
+      <label class="full">Nudge clients after this many days without a visit<input id="setCome" data-set="comeBack" type="number" min="1"></label>
+    </section>
+
+    <section class="card">
+      <h2>Services and prices</h2>
+      <div class="svchead full"><span>Service</span><span>Price $</span><span>Minutes</span><span></span></div>
+      <div id="svcList"></div>
+      <button type="button" class="full" id="addSvc">Add a service</button>
+    </section>
+
+    <section>
+      <h2>Specials, discounts and bundles</h2>
+      <div class="list" id="spList"></div>
+      <form id="spForm">
+        <label class="full">Name<input id="spName" required placeholder="e.g. Tuesday special"></label>
+        <label>Type<select id="spKind"><option value="percent">Percent off</option><option value="amount">Dollars off</option><option value="bundle">Bundle price</option></select></label>
+        <label id="spValueWrap"><span id="spValueLabel">Percent off</span><input id="spValue" type="number" min="1" required></label>
+        <label class="full" id="spServiceWrap">Applies to<select id="spService"></select></label>
+        <div class="full" id="spInclWrap" hidden><label>Bundle includes</label><div class="incl" id="spIncl"></div></div>
+        <label>Only on<select id="spDay"><option value="-1">Any day</option><option value="1">Mondays</option><option value="2">Tuesdays</option><option value="3">Wednesdays</option><option value="4">Thursdays</option><option value="5">Fridays</option><option value="6">Saturdays</option><option value="0">Sundays</option></select></label>
+        <label>Ends (optional)<input id="spEnds" type="date"></label>
+        <button class="primary full" type="submit">Add special</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>Your account</h2>
+      <p class="note" id="acctEmail"></p>
+      <label class="full">Booking link name<input id="setSlug" autocomplete="off" spellcheck="false"></label>
+      <p class="note full">Lowercase letters, numbers and dashes. Changing it breaks any link you already shared.</p>
+      <button type="button" class="full" id="saveSlug">Change booking link</button>
+      <button type="button" class="full" id="signOut">Sign out</button>
+      <button type="button" class="danger full" id="wipe">Clear all bookings and clients</button>
+    </section>
+  </div>
+
+  <p class="note">Your book is saved online to your account, so you can use it on any phone or computer. Only you can see your bookings and clients.</p>
+</div>
+
+<!-- CLIENT BOOKING PAGE -->
+<div class="toast" id="toast" hidden></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/db.js"></script>
+<script src="js/shared.js"></script>
+<script src="js/app-core.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

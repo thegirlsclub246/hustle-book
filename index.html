@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Hustle Book</title>
+<meta name="description" content="Bookings, payments, clients and invoices for small businesses and side hustles in Barbados.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div class="wrap">
+  <header><h1>Hustle <span>Book</span></h1></header>
+  <p class="lede">Bookings, payments, clients and invoices for small businesses in Barbados. Built for nail techs, barbers, braiders, detailers, mechanics, cake makers, DJs, tutors and anyone with a hustle.</p>
+
+  <section id="signin">
+    <form id="loginForm">
+      <h2 class="full">Sign in or create your book</h2>
+      <label class="full">Your email<input id="email" type="email" required autocomplete="email" placeholder="you@example.com"></label>
+      <button class="primary full" type="submit" id="loginBtn">Email me a sign-in link</button>
+      <p class="note full" id="loginNote">No password needed. We email you a link. Tap it on this phone to open your book.</p>
+    </form>
+  </section>
+
+  <ul class="features">
+    <li><b>Your own booking link</b>Customers pick a service, day and time. Requests land straight in your app.</li>
+    <li><b>Who owes you</b>Track deposits, balances and how people paid: cash, bank transfer, BiMPay, FirstPay or card.</li>
+    <li><b>Clients</b>Notes, photos of their usual style, loyalty stamps and come-back reminders.</li>
+    <li><b>Invoices</b>For one visit, a month or any dates. Save as PDF or send on WhatsApp.</li>
+  </ul>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="js/config.js"></script>
+<script src="js/db.js"></script>
+<script>
+(async()=>{
+  if(!HB_READY){showNotReady(document.getElementById("signin"));return}
+  const {data:{session}}=await sb.auth.getSession();
+  if(session){location.replace("app.html");return}
+  document.getElementById("loginForm").addEventListener("submit",async e=>{
+    e.preventDefault();
+    const btn=document.getElementById("loginBtn"),email=document.getElementById("email").value.trim();
+    btn.disabled=true;btn.textContent="Sending…";
+    const {error}=await sb.auth.signInWithOtp({email,options:{emailRedirectTo:new URL("app.html",location.href).href}});
+    btn.disabled=false;btn.textContent="Email me a sign-in link";
+    if(error){document.getElementById("loginNote").textContent="That didn't send: "+error.message+" Check the email address and try again.";return}
+    document.getElementById("loginNote").textContent=`Check ${email} for a link from Hustle Book. Tap it to open your book. It can take a minute, and may land in spam.`;
+  });
+})();
+</script>
+</body>
+</html>
