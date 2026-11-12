@@ -247,7 +247,7 @@ $$;
 
 -- Public, but only for someone who has the booking's private link (its id is unguessable).
 create or replace function public.my_booking(p_id uuid)
-returns table (service text, date date, time text, price numeric, status text, can_change boolean, moved_to uuid)
+returns table (service text, "date" date, "time" text, price numeric, status text, can_change boolean, moved_to uuid)
 language sql stable security definer set search_path = public as $$
   select r.service, r.date, r.time, r.price, r.status, public.booking_changeable(r.id),
     (select n.id from public.booking_requests n where n.moved_from = r.id order by n.created_at desc limit 1)
