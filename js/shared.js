@@ -64,15 +64,15 @@ function stampsHTML(l){if(!l)return"";let h="";for(let k=0;k<l.need;k++)h+=`<i c
 // ---------- business types ----------
 const sv=(name,price,mins)=>({name,price,mins});
 const TYPES={
-  barber:{label:"Barber",service:"Service",queue:"Walk-in queue",services:[sv("Haircut",40,30),sv("Cut + beard",55,45),sv("Line up",20,15),sv("Kids cut",30,30),sv("Beard trim",20,15)]},
-  nails:{label:"Nail tech",service:"Service",queue:"Walk-in queue",services:[sv("Gel manicure",60,60),sv("Acrylic full set",120,90),sv("Acrylic fill",80,60),sv("Pedicure",70,60),sv("Gel toes",50,45)]},
-  hair:{label:"Hair stylist or braider",service:"Style",queue:"Walk-in queue",services:[sv("Box braids",250,300),sv("Cornrows",80,90),sv("Wash and set",60,60),sv("Silk press",120,120),sv("Kids braids",100,120)]},
-  beauty:{label:"Lashes, brows or makeup",service:"Service",queue:"Walk-in queue",services:[sv("Classic lash set",150,120),sv("Lash fill",90,60),sv("Brow shape and tint",50,30),sv("Full makeup",150,75)]},
-  detail:{label:"Car wash or detailing",service:"Service",queue:"Cars waiting",services:[sv("Wash and vac",60,60),sv("Full detail",180,180),sv("Interior shampoo",120,120),sv("Engine bay clean",50,45)]},
-  repair:{label:"Mechanic, AC or phone repair",service:"Job",queue:"Jobs waiting",services:[sv("Call-out fee",75,60),sv("Diagnostic",100,60),sv("AC service",180,120),sv("Phone screen",150,60)]},
-  food:{label:"Cakes, food or catering",service:"Item",queue:"Pick-up line",services:[sv("Birthday cake (8 inch)",120,15),sv("Cupcakes (dozen)",60,10),sv("Meal prep (5 meals)",125,10),sv("Party platter",200,15)]},
-  events:{label:"DJ, photography or events",service:"Package",queue:"Waiting list",services:[sv("DJ, 4 hours",600,240),sv("Photo session, 1 hour",250,60),sv("Event photos, half day",800,240)]},
-  coach:{label:"Tutor or personal trainer",service:"Session",queue:"Waiting list",services:[sv("One-on-one session",60,60),sv("Group session",30,60),sv("8-session package",400,480)]},
+  barber:{label:"Barber",service:"Service",queue:"Walk-in queue",services:[sv("Haircut",45,30),sv("Cut + beard",60,45),sv("Line up",25,15),sv("Kids cut (under 12)",35,30),sv("Beard trim",25,20),sv("Hot towel shave",40,30)]},
+  nails:{label:"Nail tech",service:"Service",queue:"Walk-in queue",services:[sv("Gel manicure",70,60),sv("Acrylic full set",140,120),sv("Acrylic fill",90,75),sv("Spa pedicure",85,60),sv("Gel toes",55,45),sv("Nail art (add-on)",20,20)]},
+  hair:{label:"Hair stylist or braider",service:"Style",queue:"Walk-in queue",services:[sv("Knotless braids (medium)",350,360),sv("Cornrows (straight back)",80,90),sv("Silk press",150,120),sv("Wash and set",75,75),sv("Loc retwist",120,120),sv("Kids braids",120,150)]},
+  beauty:{label:"Lashes, brows or makeup",service:"Service",queue:"Walk-in queue",services:[sv("Classic lash set",140,120),sv("Hybrid lash set",170,150),sv("Lash fill (2 weeks)",80,60),sv("Brow wax and tint",55,30),sv("Full glam makeup",180,75),sv("Bridal makeup",450,120)]},
+  detail:{label:"Car wash or detailing",service:"Service",queue:"Cars waiting",services:[sv("Wash and vac",50,60),sv("Wash, vac and wax",90,90),sv("Interior shampoo",160,150),sv("Full detail (car)",250,240),sv("Full detail (SUV or van)",320,300),sv("Engine bay clean",60,45)]},
+  repair:{label:"Mechanic, AC or phone repair",service:"Job",queue:"Jobs waiting",services:[sv("Call-out fee",100,60),sv("Diagnostic",120,60),sv("Oil and filter change",150,60),sv("Brake pads (labour)",180,90),sv("AC service (split unit)",200,120),sv("Phone screen repair",250,90)]},
+  food:{label:"Cakes, food or catering",service:"Item",queue:"Pick-up line",services:[sv("Birthday cake (8 inch)",150,15),sv("Birthday cake (2 tier)",380,15),sv("Cupcakes (dozen)",72,10),sv("Black cake (9 inch)",180,10),sv("Meal prep (5 meals)",140,10),sv("Party platter (50 pieces)",175,15)]},
+  events:{label:"DJ, photography or events",service:"Package",queue:"Waiting list",services:[sv("DJ, 4 hours",800,240),sv("DJ + sound system, 6 hours",1400,360),sv("Photo session, 1 hour",300,60),sv("Event photos, half day",900,240),sv("Wedding photos, full day",2500,480),sv("Photo booth, 3 hours",650,180)]},
+  coach:{label:"Tutor or personal trainer",service:"Session",queue:"Waiting list",services:[sv("CSEC maths, 1 hour",60,60),sv("Common Entrance prep, 1 hour",50,60),sv("Group class (up to 4)",30,60),sv("Personal training, 1 hour",80,60),sv("Online session, 1 hour",50,60),sv("8-session package",440,480)]},
   other:{label:"Something else",service:"Service",queue:"Walk-in queue",services:[sv("Standard",50,60),sv("Premium",100,90)]}};
 const T=()=>TYPES[state.settings.type]||TYPES.barber;
 function applyTerms(){const t=T();document.querySelectorAll("[data-t]").forEach(el=>{el.textContent=el.dataset.t==="servicelc"?t.service.toLowerCase():t[el.dataset.t]})}
