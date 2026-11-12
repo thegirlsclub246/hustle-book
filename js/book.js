@@ -11,7 +11,7 @@ async function bootBook(){
   if(!slug){message(`<div class="card"><h2>Link incomplete</h2><p class="note full">This booking link is missing the business name. Ask the business to send you their full link.</p></div>`);return}
   const {data,error}=await sb.rpc("public_business",{p_slug:slug});
   if(error){message(`<div class="card"><h2>Couldn't load</h2><p class="note full">Check your internet connection and refresh the page.</p></div>`);return}
-  if(!data||!data.length){message(`<div class="card"><h2>Business not found</h2><p class="note full">We couldn't find a business at this link. It may have changed. Ask them for their new link.</p></div>`);return}
+  if(!data||!data.length){message(`<div class="card"><h2>Business not found</h2><p class="note full">We couldn't find a business taking online bookings at this link. It may have changed. Ask them for their new link.</p></div>`);return}
   biz=data[0];const p=biz.profile||{};
   state={settings:{...DEFAULT_SETTINGS,...(p.settings||{})},services:p.services||[],specials:p.specials||[],items:[],clients:[],queue:[]};
   document.title=state.settings.name+" · Book online";

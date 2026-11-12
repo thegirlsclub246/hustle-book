@@ -33,6 +33,23 @@ It's plain HTML, CSS and JavaScript with no build step. Data lives in [Supabase]
 5. **Connect the app.** Open **Project Settings → API**. Copy the **Project URL** and the **anon public** key into `js/config.js`. Never use the `service_role` key here.
 6. **Put it online.** Upload the folder to your host. On Cloudflare Pages, either connect this GitHub repo (no build command, output folder `/`) or drag the folder into a direct upload.
 
+## Subscribers only
+
+Only people who've paid for a Hustle Kit subscription can create an account.
+
+- After subscribing on the store, the customer types the email they'll sign in with. The `hustle-subscribe` Edge Function (`supabase/functions/hustle-subscribe/index.ts`) checks the subscription with PayPal and adds that email to the `subscribers` table.
+- The database refuses to create an account for any email that isn't on that list, and a business only works (app, booking link, booking requests) while its owner's subscription is paid up.
+- The app re-checks with PayPal near the end of each paid month. A cancelled subscription keeps working until a month after the last payment.
+- Everyone who already had a business when this was switched on is added as `free`, which never runs out.
+
+**To set it up:** add `PAYPAL_CLIENT_ID` and `PAYPAL_SECRET` (from your live PayPal app) under **Edge Functions → Secrets**, deploy `hustle-subscribe` with **Verify JWT** turned off, and run `supabase/schema.sql` again.
+
+**To give someone free access** (a friend or tester), run this in the SQL Editor:
+```sql
+insert into public.subscribers (email, status, note) values ('their@email.com', 'free', 'Friend')
+on conflict (email) do update set status = 'free';
+```
+
 ## Good to know
 
 - Each business's bookings and clients are only visible to its owner. That is enforced by the database rules, not just the app.
