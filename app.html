@@ -154,8 +154,12 @@
       <label class="full">Area and hours (clients see this)<input id="setArea" data-set="area"></label>
       <label>WhatsApp number<input id="setWa" data-set="whatsapp" inputmode="tel" placeholder="1 246 555 0000"></label>
       <label>Deposit to hold a slot ($, 0 for none)<input id="setDep" data-set="deposit" type="number" min="0" step="5"></label>
-      <label>Opens at<select id="setOpen" data-set="open"></select></label>
-      <label>Closes at<select id="setClose" data-set="close"></select></label>
+    </section>
+
+    <section class="card">
+      <h2>Days and hours</h2>
+      <p class="note full">Tick the days you take bookings. Customers can only pick times inside these hours.</p>
+      <div class="full hours" id="setHours"></div>
     </section>
 
     <section class="card">
