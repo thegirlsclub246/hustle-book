@@ -27,6 +27,7 @@
       <label class="full">Your email<input id="email" type="email" required autocomplete="email" placeholder="you@example.com"></label>
       <button class="primary full" type="submit" id="loginBtn">Email me a sign-in link</button>
       <p class="note full" id="loginNote">No password needed. We email you a link. Tap it on this phone to open your book.</p>
+      <p class="note full" id="subNote">New to Hustle Book? It comes with a Hustle Kit subscription. <a href="../#hustle-book">Subscribe here</a>, then sign in with the email you gave when you subscribed.</p>
     </form>
     <form id="codeForm" hidden>
       <h2 class="full">Enter your code</h2>
@@ -54,13 +55,21 @@
   if(!HB_READY){showNotReady(document.getElementById("signin"));return}
   const {data:{session}}=await sb.auth.getSession();
   if(session){location.replace("app.html");return}
+  const given=new URLSearchParams(location.search).get("email");
+  if(given)document.getElementById("email").value=given;
   document.getElementById("loginForm").addEventListener("submit",async e=>{
     e.preventDefault();
     const btn=document.getElementById("loginBtn"),email=document.getElementById("email").value.trim();
     btn.disabled=true;btn.textContent="Sending…";
     const {error}=await sb.auth.signInWithOtp({email,options:{emailRedirectTo:new URL("app.html",location.href).href}});
     btn.disabled=false;btn.textContent="Email me a sign-in link";
-    if(error){document.getElementById("loginNote").textContent="That didn't send: "+error.message+" Check the email address and try again.";return}
+    if(error){
+      // The database turns away emails that haven't subscribed; Supabase reports that as a "database error".
+      const notSub=/database error|subscriber/i.test(error.message||"");
+      document.getElementById("loginNote").innerHTML=notSub
+        ?`<b>${email.replace(/[&<>"]/g,"")} doesn't have a Hustle Book subscription yet.</b> Hustle Book is for Hustle Kit subscribers. <a href="../#hustle-book">Subscribe here</a>, or if you've already subscribed, use the email you gave after paying.`
+        :"That didn't send: "+error.message.replace(/[&<>"]/g,"")+" Check the email address and try again.";
+      return}
     document.getElementById("loginNote").textContent=`Check ${email} for an email from Hustle Book. Tap the link, or type the code below. It can take a minute, and may land in spam.`;
     document.getElementById("codeForm").hidden=false;
   });

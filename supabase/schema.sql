@@ -90,3 +90,113 @@ revoke all on function public.public_business(text) from public;
 revoke all on function public.busy_slots(text, date) from public;
 grant execute on function public.public_business(text) to anon, authenticated;
 grant execute on function public.busy_slots(text, date) to anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Subscribers only. A new email can only sign up if it's on this list, and a
+-- business only works while its owner's subscription is paid up.
+-- Rows are added by the hustle-subscribe Edge Function after a PayPal
+-- subscription is checked with PayPal. status 'free' never runs out (for your
+-- own business, friends and testers).
+-- ---------------------------------------------------------------------------
+create table if not exists public.subscribers (
+  email text primary key check (email = lower(email)),
+  status text not null,
+  paypal_subscription_id text unique,
+  paypal_email text,
+  plan_id text,
+  paid_until timestamptz,
+  checked_at timestamptz,
+  note text,
+  created_at timestamptz not null default now()
+);
+-- No policies on purpose: nobody can read or change this list from the website.
+alter table public.subscribers enable row level security;
+
+-- Everyone who already has a business keeps it, free of charge.
+insert into public.subscribers (email, status, note)
+select lower(u.email), 'free', 'Had a business before sign-up was limited to subscribers'
+from public.businesses b join auth.users u on u.id = b.owner_id
+where u.email is not null
+on conflict (email) do nothing;
+
+create or replace function public.email_has_access(p_email text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from public.subscribers s
+    where s.email = lower(p_email) and (s.status = 'free' or s.paid_until > now())
+  );
+$$;
+
+create or replace function public.owner_has_access(p_owner uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select public.email_has_access((select u.email from auth.users u where u.id = p_owner));
+$$;
+
+-- For the signed-in owner's app: is my subscription paid up?
+create or replace function public.my_access()
+returns table (has_access boolean, status text, paid_until timestamptz, checked_at timestamptz)
+language sql stable security definer set search_path = public as $$
+  select public.owner_has_access(auth.uid()), s.status, s.paid_until, s.checked_at
+  from (select 1) one
+  left join public.subscribers s on s.email = lower((select u.email from auth.users u where u.id = auth.uid()));
+$$;
+
+-- Used only by the Edge Function: has this email ever signed in?
+create or replace function public.email_signed_up(p_email text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from auth.users u where lower(u.email) = lower(p_email));
+$$;
+
+revoke all on function public.email_has_access(text) from public, anon, authenticated;
+revoke all on function public.owner_has_access(uuid) from public, anon;
+revoke all on function public.my_access() from public, anon;
+revoke all on function public.email_signed_up(text) from public, anon, authenticated;
+grant execute on function public.owner_has_access(uuid) to authenticated;
+grant execute on function public.my_access() to authenticated;
+grant execute on function public.email_signed_up(text) to service_role;
+grant execute on function public.email_has_access(text) to service_role;
+
+-- Block new accounts for emails that haven't subscribed.
+-- The sign-in page shows "Database error saving new user" from Supabase as a friendly message.
+create or replace function public.only_subscribers_sign_up()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if not public.email_has_access(new.email) then
+    raise exception 'Hustle Book is for Hustle Kit subscribers only';
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists only_subscribers_sign_up on auth.users;
+create trigger only_subscribers_sign_up before insert on auth.users
+  for each row execute function public.only_subscribers_sign_up();
+
+-- Owners can only use their book while subscribed.
+drop policy if exists "owners manage their own business" on public.businesses;
+create policy "owners manage their own business" on public.businesses
+  for all to authenticated
+  using (auth.uid() = owner_id and public.owner_has_access(owner_id))
+  with check (auth.uid() = owner_id and public.owner_has_access(owner_id));
+
+-- Booking links only take requests while the owner is subscribed.
+create or replace function public.business_taking_bookings(p_business uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.businesses b where b.id = p_business and public.owner_has_access(b.owner_id));
+$$;
+revoke all on function public.business_taking_bookings(uuid) from public;
+grant execute on function public.business_taking_bookings(uuid) to anon, authenticated;
+
+drop policy if exists "anyone can send a booking request" on public.booking_requests;
+create policy "anyone can send a booking request" on public.booking_requests
+  for insert to anon, authenticated
+  with check (
+    status = 'new' and date >= current_date - 1 and date <= current_date + 120
+    and public.business_taking_bookings(business_id)
+  );
+
+create or replace function public.public_business(p_slug text)
+returns table (id uuid, slug text, profile jsonb)
+language sql stable security definer set search_path = public as $$
+  select b.id, b.slug, b.profile from public.businesses b
+  where b.slug = lower(p_slug) and public.owner_has_access(b.owner_id);
+$$;

@@ -30,6 +30,7 @@ async function boot(){
   const {data:{session}}=await sb.auth.getSession();
   if(!session){location.replace("index.html");return}
   $("acctEmail").textContent="Signed in as "+session.user.email;
+  if(!(await checkSubscription(session)))return;
   const {data,error}=await sb.from("businesses").select("*").eq("owner_id",session.user.id).maybeSingle();
   if(error){
     // Fall back to the copy saved on this device so the owner can still see today's bookings.
@@ -38,6 +39,31 @@ async function boot(){
   }
   if(!data){onboarding(session);return}
   start(data);
+}
+// Hustle Book is for paying Hustle Kit subscribers. The database enforces this;
+// this only explains it nicely. If the check itself fails, carry on and let the database decide.
+const STORE_URL=new URL("../#hustle-book",location.href).href;
+async function myAccess(){
+  const {data,error}=await sb.rpc("my_access");
+  return error||!data||!data[0]?null:data[0];
+}
+async function checkSubscription(session){
+  let a=await myAccess();
+  if(!a)return true;
+  const soon=Date.now()+3*864e5,checked=a.checked_at?Date.parse(a.checked_at):0;
+  // Re-check with PayPal when the paid month is nearly over, or at least once a week.
+  if(a.status&&a.status!=="free"&&(!a.paid_until||Date.parse(a.paid_until)<soon||Date.now()-checked>7*864e5)){
+    try{await sb.functions.invoke("hustle-subscribe",{body:{action:"refresh"}});a=(await myAccess())||a}catch(e){}
+  }
+  if(a.has_access)return true;
+  $("onboard").hidden=false;
+  $("onboard").innerHTML=`<div class="card"><h2>${a.status?"Your subscription has ended":"Hustle Book needs a subscription"}</h2>
+    <p class="note full">Hustle Book is part of a Hustle Kit subscription, and there isn't an active one for ${esc(session.user.email)}. Your bookings and clients are kept safe. Subscribe again and everything is here waiting for you.</p>
+    <a class="btnlink primary full" style="text-align:center" href="${STORE_URL}">Subscribe on the Hustle Kit store</a>
+    <p class="note full">Already paid? Message us with your PayPal subscription ID (it starts with I-) and we'll sort it out.</p>
+    <button type="button" class="full" id="lapsedOut">Sign out</button></div>`;
+  $("lapsedOut").addEventListener("click",async()=>{await sb.auth.signOut();location.replace("index.html")});
+  return false;
 }
 function start(row){
   business=row;const p=row.profile||{},d=row.data||{};
