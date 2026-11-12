@@ -15,7 +15,7 @@ It's plain HTML, CSS and JavaScript with no build step. Data lives in [Supabase]
 | `app.html` | The owner's app: Today, Clients, Money and Setup tabs |
 | `book.html?b=<name>` | A business's public booking page |
 | `supabase/schema.sql` | Database tables and security rules |
-| `manifest.webmanifest`, `icons/`, `sw.js` | Home-screen install with the Hustle Kit logo, full-screen mode, offline fallback |
+| `manifest.webmanifest`, `icons/` | Install as an app (laptop or phone) with the Hustle Kit logo |
 | `js/guide.js`, `js/tour.js` | "Add to Home Screen" steps (iPhone, Android, Samsung, computer) and the walkthrough |
 
 ## Set up (about 10 minutes)

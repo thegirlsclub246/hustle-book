@@ -73,7 +73,7 @@
     const render=()=>{
       const s=STEPS[plat];
       back.innerHTML=`<div class="hbg-sheet">
-        <div class="hbg-head">${icon?`<img src="${icon.href}" alt="">`:""}<div><h2 id="hbgTitle">${standalone()?"You're all set":"Put Hustle Book on your home screen"}</h2><p>${standalone()?"Hustle Book is already on your home screen.":"It opens full screen like a normal app, in one tap."}</p></div></div>
+        <div class="hbg-head">${icon?`<img src="${icon.href}" alt="">`:""}<div><h2 id="hbgTitle">${standalone()?"You're all set":plat==="desktop"?"Install Hustle Book on this computer":"Put Hustle Book on your home screen"}</h2><p>${standalone()?"Hustle Book is already installed.":plat==="desktop"?"It opens in its own window like a normal program. You can also open it on your phone any time by signing in.":"It opens full screen like a normal app, in one tap."}</p></div></div>
         ${standalone()?"":`<div class="hbg-tabs" role="group" aria-label="Your phone">${Object.entries(STEPS).map(([k,v])=>`<button type="button" data-plat="${k}" aria-pressed="${k===plat}">${v.label}</button>`).join("")}</div>
         <ol class="hbg-steps">${s.steps.map(x=>`<li><span>${x}</span></li>`).join("")}</ol>
         <button type="button" class="primary" id="hbgInstallNow" ${deferredPrompt?"":"hidden"}>Install now</button>`}
@@ -119,5 +119,6 @@
     firstRun(){if(store.get(SEEN))return;store.set(SEEN,"1");if(standalone()){if(tour.length)startTour()}else showInstall()}
   };
 
-  if("serviceWorker" in navigator&&location.protocol==="https:"){window.addEventListener("load",()=>{navigator.serviceWorker.register("sw.js").catch(()=>{})})}
+  // Nothing is cached on the device: remove any offline copy an earlier version saved.
+if("serviceWorker" in navigator){navigator.serviceWorker.getRegistrations().then(rs=>rs.forEach(r=>r.unregister())).catch(()=>{});if(window.caches)caches.keys().then(ks=>ks.forEach(k=>caches.delete(k))).catch(()=>{})}
 })();

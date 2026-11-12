@@ -9,7 +9,6 @@ function setSync(text, st){const el=$("sync");if(el){el.textContent=text;el.data
 function save(){
   if(!business)return true;
   dirty=true;clearTimeout(saveTimer);setSync("Saving…","busy");
-  try{localStorage.setItem(CACHE,JSON.stringify({id:business.id,state}))}catch(e){}
   saveTimer=setTimeout(flush,700);
   return true;
 }
@@ -34,8 +33,6 @@ async function boot(){
   const {data,error}=await sb.from("businesses").select("*").eq("owner_id",session.user.id).maybeSingle();
   if(error){
     // Fall back to the copy saved on this device so the owner can still see today's bookings.
-    let cached=null;try{cached=JSON.parse(localStorage.getItem(CACHE))}catch(e){}
-    if(cached&&cached.state){toast("You're offline. Showing the last copy saved on this phone.");}
     $("onboard").hidden=false;$("onboard").innerHTML=`<div class="card"><h2>Couldn't load your book</h2><p class="note full">Check your internet connection, then refresh this page.</p></div>`;
     return;
   }

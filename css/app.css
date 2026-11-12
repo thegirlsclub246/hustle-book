@@ -155,3 +155,16 @@ a.btnlink:focus-visible{outline:2px solid var(--sea);outline-offset:2px}
 button.wa{width:100%;padding:12px;border-radius:10px;font-size:15px;background:var(--gold);color:var(--gold-ink);border-color:var(--gold)}
 .calgrid button:disabled.taken{text-decoration:none}
 .chip:disabled{text-decoration:line-through}
+/* ---- laptop layout: wider page, two columns ---- */
+@media (min-width: 960px){
+  .wrap{max-width:1180px;padding-block:28px 64px}
+  #ownerView>header,#ownerView>.tabs{max-width:none}
+  .tabs{grid-template-columns:repeat(4,minmax(0,160px));justify-content:start}
+  .pane{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:28px;align-items:start}
+  .pane>.stats,.pane>.monthbar,.pane>#reqSection,.pane>#importCard,.pane>.linkcard{grid-column:1/-1}
+  .pane>.stats{grid-template-columns:repeat(6,minmax(0,1fr))}
+  #pane-today>.stats{grid-template-columns:repeat(3,minmax(0,1fr))}
+  h1{font-size:34px}
+  #bookView,#bookMsgView{max-width:720px}
+}
+@media (min-width: 1280px){ body{font-size:15.5px} }
