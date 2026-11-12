@@ -156,7 +156,7 @@ function renderSpecials(){
 function fillSettings(){
   const s=state.settings;
   $("setType").innerHTML=Object.entries(TYPES).map(([k,t])=>`<option value="${k}">${t.label}</option>`).join("");$("setType").value=s.type||"barber";
-  $("setName").value=s.name;$("setArea").value=s.area;$("setWa").value=s.whatsapp;$("setDep").value=s.deposit;$("setPayLink").value=s.payLink||"";$("setPayDetails").value=s.payDetails||"";$("setInstant").checked=!!s.instant;$("setChange").value=s.changeHours;$("setStep").value=String(s.slotStep||"len");renderHours();
+  $("setName").value=s.name;$("setArea").value=s.area;$("setWa").value=s.whatsapp;$("setDep").value=s.deposit;$("setPayLink").value=s.payLink||"";$("setPayDetails").value=s.payDetails||"";$("setInstant").checked=!!s.instant;$("setChange").value=s.changeHours;$("setStep").value=String(s.slotStep||"len");["Bio:bio","Address:address","Map:mapLink","Email:email","Ig:instagram"].forEach(x=>{const[i,k]=x.split(":");$("set"+i).value=s[k]||""});renderBrand();renderHours();
   $("setLoy").value=s.loyaltyEvery;$("setLoyR").value=s.loyaltyReward;$("setCome").value=s.comeBack;
   $("bookLink").textContent=BOOK_LINK;
 }
@@ -259,7 +259,7 @@ $("qList").addEventListener("click",e=>{
 
 // ---------- clients ----------
 $("dueList").addEventListener("click",e=>{const b=e.target.closest("[data-due]");if(!b)return;const c=state.clients.find(x=>x.id===b.dataset.due);if(c)sendWa(c.phone,comeBackMsg(c,clientStats(c)),b.closest(".row").querySelector(".msg"))});
-function shrink(file){return new Promise((res,rej)=>{const r=new FileReader();r.onerror=rej;r.onload=()=>{const img=new Image();img.onerror=rej;img.onload=()=>{const k=Math.min(1,600/Math.max(img.width,img.height));const cv=document.createElement("canvas");cv.width=Math.round(img.width*k);cv.height=Math.round(img.height*k);cv.getContext("2d").drawImage(img,0,0,cv.width,cv.height);res(cv.toDataURL("image/jpeg",0.72))};img.src=r.result};r.readAsDataURL(file)})}
+function shrink(file,max=600){return new Promise((res,rej)=>{const r=new FileReader();r.onerror=rej;r.onload=()=>{const img=new Image();img.onerror=rej;img.onload=()=>{const k=Math.min(1,max/Math.max(img.width,img.height));const cv=document.createElement("canvas");cv.width=Math.round(img.width*k);cv.height=Math.round(img.height*k);const g=cv.getContext("2d");g.fillStyle="#ffffff";g.fillRect(0,0,cv.width,cv.height);g.drawImage(img,0,0,cv.width,cv.height);res(cv.toDataURL("image/jpeg",0.72))};img.src=r.result};r.readAsDataURL(file)})}
 $("clientList").addEventListener("click",e=>{const t=e.target.closest("[data-open],[data-rmphoto],[data-bookagain],[data-invoice]");if(!t)return;
   if(t.dataset.invoice){showTab("money");$("invClient").value=t.dataset.invoice;$("invPeriod").value="month";renderInvoice();$("invForm").scrollIntoView({behavior:"smooth",block:"start"});return}
   if(t.dataset.open){openClient=openClient===t.dataset.open?null:t.dataset.open;renderClients();return}
@@ -287,7 +287,9 @@ $("pane-setup").addEventListener("change",e=>{
     else{const cur=hoursOn(s,d);cur[t.dataset.hf==="o"?0:1]=+t.value;if(cur[1]<=cur[0]){toast("Closing time has to be after opening time");renderHours();return}s.dayHours={...(s.dayHours||{}),[d]:cur}}
     save();renderHours();toast("Saved");return}
   if(t.dataset.set){const k=t.dataset.set;
-    if(k==="payLink"&&t.value.trim()&&!safeUrl(t.value)){toast("Paste the full link, starting with https://");return}
+    if((k==="payLink"||k==="mapLink")&&t.value.trim()&&!safeUrl(t.value)){toast("Paste the full link, starting with https://");return}
+    if(k==="email"&&t.value.trim()&&!t.checkValidity()){toast("That email doesn't look right");return}
+    if(k==="instagram")t.value=igHandle(t.value)?"@"+igHandle(t.value):"";
     if((k==="breakFrom"||k==="breakTo")&&+$("setBreakFrom").value&&+$("setBreakTo").value&&+$("setBreakTo").value<=+$("setBreakFrom").value){t.value=String(state.settings[k]||0);toast("The break has to end after it starts");return}
     state.settings[k]=t.type==="checkbox"?t.checked:NUMERIC.includes(k)?Math.max(0,+t.value||0):t.value.trim();save();render();toast("Saved");return}
   if(t.dataset.svc!==undefined){const s=state.services[+t.dataset.svc],f=t.dataset.f;if(!s)return;
@@ -301,6 +303,18 @@ $("pane-setup").addEventListener("click",e=>{
     if(s.dataset.sp==="del"){const n=state.specials[k].name;state.specials.splice(k,1);toast(`${n} deleted`)}else{state.specials[k].active=!state.specials[k].active;toast(state.specials[k].active?"Special turned on":"Special turned off")}
     save();render()}
 });
+// ---------- booking page look ----------
+function renderBrand(){
+  const s=state.settings,c=validColor(s.color);
+  $("logoPrev").innerHTML=s.logo?`<img src="${s.logo}" alt="Your logo">`:`<span>${esc(initials(s.name||"?"))}</span>`;
+  $("logoPrev").style.background=c||"";$("logoPrev").style.color=c?inkFor(c):"";$("logoRm").hidden=!s.logo;
+  $("swatches").innerHTML=BRAND_COLORS.map(x=>`<button type="button" class="swatch" data-color="${x}" style="background:${x}" aria-label="Colour ${x}" aria-pressed="${c===x}"></button>`).join("")+`<label class="swatch custom" aria-label="Pick any colour" title="Pick any colour"${c&&!BRAND_COLORS.includes(c)?` style="background:${c}" data-on="1"`:""}><input type="color" id="colorPick" value="${c||"#f0b400"}"></label>`;
+}
+$("swatches").addEventListener("click",e=>{const b=e.target.closest("[data-color]");if(!b)return;state.settings.color=b.dataset.color;save();renderBrand();toast("Colour saved")});
+$("swatches").addEventListener("change",e=>{if(e.target.id!=="colorPick")return;state.settings.color=validColor(e.target.value);save();renderBrand();toast("Colour saved")});
+$("logoAdd").addEventListener("change",async e=>{const f=e.target.files[0];e.target.value="";if(!f)return;
+  try{state.settings.logo=await shrink(f,320);save();renderBrand();toast("Logo saved")}catch(err){toast("Couldn't read that picture. Try a JPG or PNG.")}});
+$("logoRm").addEventListener("click",()=>{state.settings.logo="";save();renderBrand();toast("Logo removed")});
 $("offAdd").addEventListener("click",()=>{
   let from=$("offFrom").value,to=$("offTo").value||from;if(!from){toast("Pick the first day off");return}
   if(to<from)[from,to]=[to,from];

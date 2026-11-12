@@ -162,6 +162,18 @@
       <label>Deposit to hold a slot ($, 0 for none)<input id="setDep" data-set="deposit" type="number" min="0" step="5"></label>
     </section>
 
+    <section class="card" id="brandCard">
+      <h2>Your booking page</h2>
+      <p class="note full">Make your page look like your brand. Clients see all of this when they book.</p>
+      <div class="full brandrow"><span class="logoprev" id="logoPrev"></span><div class="btns"><label class="filebtn">Add logo or photo<input type="file" accept="image/*" id="logoAdd" hidden></label><button type="button" id="logoRm" hidden>Remove</button></div></div>
+      <div class="full"><label>Your colour</label><div class="swatches" id="swatches"></div></div>
+      <label class="full">About you (bio)<textarea id="setBio" data-set="bio" rows="3" maxlength="400" placeholder="e.g. Neat, long-lasting braids in a calm home studio. 8 years doing hair. Kids welcome."></textarea></label>
+      <label class="full">Address or where to find you<input id="setAddress" data-set="address" maxlength="160" placeholder="e.g. 12 Rockley Main Rd, Christ Church (upstairs)"></label>
+      <label class="full">Google Maps link (optional)<input id="setMap" data-set="mapLink" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://maps.app.goo.gl/…"></label>
+      <label class="full">Email for clients (optional)<input id="setEmail" data-set="email" type="email" maxlength="120" placeholder="you@email.com"></label>
+      <label class="full">Instagram (optional)<input id="setIg" data-set="instagram" maxlength="60" autocomplete="off" spellcheck="false" placeholder="@yourbusiness"></label>
+    </section>
+
     <section class="card">
       <h2>Getting paid deposits</h2>
       <p class="note full">Clients see this as soon as they book, and it goes in your reminders. Fill in one or both.</p>

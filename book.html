@@ -7,12 +7,16 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Inter:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="css/app.css">
 <link rel="icon" href="icons/favicon-32.png" sizes="32x32">
+<meta name="theme-color" content="#0e6e62">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 </head>
 <body>
 <div class="wrap" id="bookMsgView"><p class="note">Loading…</p></div>
 <div class="wrap" id="bookView" hidden>
-  <div class="biz"><span class="eyebrow">Book online</span><h1 id="bizName"></h1><span class="note" id="bizArea"></span><a class="note starline" id="bizStars" href="#bkReviews" hidden></a></div>
+  <div class="bizhead"><span class="bizlogo" id="bizLogo" aria-hidden="true"></span>
+    <div class="biz"><span class="eyebrow">Book online</span><h1 id="bizName"></h1><span class="note" id="bizArea"></span><a class="note starline" id="bizStars" href="#bkReviews" hidden></a></div></div>
+  <p class="bizbio" id="bizBio" hidden></p>
+  <div class="contact" id="bizContact" hidden></div>
   <div class="showcase" id="bkGallery" hidden></div>
   <section class="summary" id="bkManage" hidden></section>
   <div class="specials" id="bkSpecials" hidden></div>
@@ -36,7 +40,7 @@
   <p class="note">Powered by Hustle Book.</p>
 </div>
 <div class="wrap" id="reviewView" hidden>
-  <div class="biz"><span class="eyebrow">Leave a review</span><h1 id="revBiz"></h1></div>
+  <div class="bizhead"><span class="bizlogo" id="revLogo" aria-hidden="true"></span><div class="biz"><span class="eyebrow">Leave a review</span><h1 id="revBiz"></h1></div></div>
   <section class="summary" id="revForm">
     <h2>How was your visit?</h2>
     <div class="starpick" id="revStars" role="group" aria-label="Your rating">

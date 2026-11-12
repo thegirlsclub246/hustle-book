@@ -16,14 +16,27 @@ async function bootBook(){
   if(!data||!data.length){message(`<div class="card"><h2>Business not found</h2><p class="note full">We couldn't find a business taking online bookings at this link. It may have changed. Ask them for their new link.</p></div>`);return}
   biz=data[0];const p=biz.profile||{};
   state={settings:{...DEFAULT_SETTINGS,...(p.settings||{})},services:p.services||[],specials:p.specials||[],gallery:p.gallery||[],items:[],clients:[],queue:[]};
+  applyBrand(state.settings);
   if(REVIEW){showReviewForm();return}
   document.title=state.settings.name+" · Book online";
   $("bookMsgView").hidden=true;$("bookView").hidden=false;
-  applyTerms();
+  applyTerms();renderBizHead();
   $("bkGallery").hidden=!state.gallery.length;
   $("bkGallery").innerHTML=state.gallery.map((src,k)=>`<img src="${src}" alt="${esc(state.settings.name)} work, photo ${k+1}" loading="lazy">`).join("");
   if(RID)await loadMine();
   renderBook();loadReviews();
+}
+function logoHTML(S){return S.logo&&/^data:image\//.test(S.logo)?`<img src="${S.logo}" alt="">`:esc(initials(S.name||"?"))}
+function renderBizHead(){
+  const S=state.settings,wa=waNumber(S.whatsapp),ig=igHandle(S.instagram),map=safeUrl(S.mapLink);
+  $("bizLogo").innerHTML=logoHTML(S);
+  $("bizBio").textContent=S.bio||"";$("bizBio").hidden=!S.bio;
+  const bits=[];
+  if(S.address||map)bits.push(`<a ${map?`href="${esc(map)}" target="_blank" rel="noopener"`:`href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(S.address+", Barbados")}" target="_blank" rel="noopener"`}><span aria-hidden="true">📍</span>${esc(S.address||"Get directions")}</a>`);
+  if(wa.length>=10)bits.push(`<a href="https://wa.me/${wa}" target="_blank" rel="noopener"><span aria-hidden="true">💬</span>WhatsApp</a>`);
+  if(S.email)bits.push(`<a href="mailto:${esc(S.email)}"><span aria-hidden="true">✉️</span>${esc(S.email)}</a>`);
+  if(ig)bits.push(`<a href="https://instagram.com/${encodeURIComponent(ig)}" target="_blank" rel="noopener"><span aria-hidden="true">📷</span>@${esc(ig)}</a>`);
+  $("bizContact").innerHTML=bits.join("");$("bizContact").hidden=!bits.length;
 }
 const linkFor=id=>location.origin+location.pathname+"?b="+encodeURIComponent(slug)+"&r="+id;
 function newUuid(){if(crypto.randomUUID)return crypto.randomUUID();const b=crypto.getRandomValues(new Uint8Array(16));b[6]=b[6]&15|64;b[8]=b[8]&63|128;const h=[...b].map(x=>x.toString(16).padStart(2,"0")).join("");return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`}
@@ -189,7 +202,7 @@ let revStars=0,revSending=false;
 function showReviewForm(){
   document.title="Review "+state.settings.name;
   $("bookMsgView").hidden=true;$("reviewView").hidden=false;
-  $("revBiz").textContent=state.settings.name;
+  $("revBiz").textContent=state.settings.name;$("revLogo").innerHTML=logoHTML(state.settings);
   $("revBook").href=location.pathname+"?b="+encodeURIComponent(slug);
 }
 $("revStars").addEventListener("click",e=>{const b=e.target.closest("[data-star]");if(!b)return;revStars=+b.dataset.star;$("revStars").querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",+x.dataset.star<=revStars))});

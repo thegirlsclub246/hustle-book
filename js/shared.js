@@ -38,7 +38,7 @@ function startTimes(S,dow,len,busy){
 }
 const hm=x=>pad(Math.floor(x))+":"+pad(Math.round((x%1)*60));
 
-const DEFAULT_SETTINGS={type:"barber",name:"",area:"",whatsapp:"",deposit:0,payLink:"",payDetails:"",instant:false,changeHours:24,slotStep:"len",breakFrom:0,breakTo:0,daysOff:[],comeBack:21,loyaltyEvery:10,loyaltyReward:"free",open:9,close:19,openDays:[1,2,3,4,5,6]};
+const DEFAULT_SETTINGS={type:"barber",name:"",area:"",whatsapp:"",deposit:0,payLink:"",payDetails:"",instant:false,changeHours:24,slotStep:"len",breakFrom:0,breakTo:0,daysOff:[],color:"",logo:"",bio:"",address:"",mapLink:"",email:"",instagram:"",comeBack:21,loyaltyEvery:10,loyaltyReward:"free",open:9,close:19,openDays:[1,2,3,4,5,6]};
 
 // ---------- deposits and WhatsApp ----------
 // How to pay the deposit, for messages: "here: https://paypal.me/x" or "by bank transfer to RBC 123…".
@@ -46,6 +46,14 @@ const safeUrl=u=>/^https:\/\/[^\s"'<>]+$/i.test(String(u||"").trim())?String(u).
 function depositHow(S){const l=safeUrl(S.payLink);if(l)return "here: "+l;return S.payDetails?"by bank transfer to "+S.payDetails:"by bank transfer"}
 // A wa.me link that opens WhatsApp with the message typed in. Empty if the number is missing or too short.
 function waLink(phone,text){const n=waNumber(phone);return n.length>=10?"https://wa.me/"+n+"?text="+encodeURIComponent(text):""}
+// ---------- business branding ----------
+const BRAND_COLORS=["#f0b400","#e85d75","#c2185b","#8e44ad","#3f51b5","#0e7c86","#1e7a46","#d35400","#111827"];
+const validColor=c=>/^#[0-9a-f]{6}$/i.test(String(c||""))?c:"";
+// Black or white text, whichever reads better on the colour.
+function inkFor(hex){const n=parseInt(hex.slice(1),16),ch=v=>{v/=255;return v<=.03928?v/12.92:((v+.055)/1.055)**2.4},L=.2126*ch(n>>16&255)+.7152*ch(n>>8&255)+.0722*ch(n&255);return L>.4?"#111111":"#ffffff"}
+// Paints the booking page in the business's colour (buttons, picks, links).
+function applyBrand(S){const c=validColor(S.color);if(!c)return;const r=document.documentElement.style;r.setProperty("--gold",c);r.setProperty("--gold-ink",inkFor(c));r.setProperty("--brand",c);r.setProperty("--brand-ink",inkFor(c));document.querySelector('meta[name="theme-color"]')?.setAttribute("content",c)}
+const igHandle=h=>String(h||"").trim().replace(/^https?:\/\/(www\.)?instagram\.com\//i,"").replace(/^@/,"").replace(/[\/?#].*$/,"");
 const stars=n=>"★★★★★".slice(0,n)+"☆☆☆☆☆".slice(0,5-n);
 
 // ---------- services, specials, loyalty ----------
