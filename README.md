@@ -58,6 +58,7 @@ on conflict (email) do update set status = 'free';
 - **Change or cancel.** Every confirmation has a private link (`book.html?b=<name>&r=<booking id>`) where the client can move or cancel, up to the number of hours before that the owner sets (24 by default). The owner sees "Moved" or "Cancelled" on the Today tab. A deposit already paid moves with the booking.
 - **Times that fit the business.** Start times follow each service's length (or every 15, 30 or 60 minutes), restart straight after a booking ends and after the daily break, and never run into the break or past closing. Owners can block days off for holidays.
 - **Their own look.** Setup → Your booking page: colour (presets or any colour), logo or photo, bio, address with a map link, email and Instagram. The booking and review pages use the colour for buttons and picks, and show the details as tap-to-contact buttons.
+- **Service categories.** Setup → Services: add categories (Nails, Lashes and brows…) and put each service in one. The booking page groups services under each category with filter chips, and the owner's booking form groups them too.
 - **Photos and reviews.** Up to 6 photos show on the booking page. "Ask for a review" on a paid booking sends `book.html?b=<name>&review=1`. New reviews wait in Setup until the owner taps Show.
 
 These need the latest `supabase/schema.sql`. Run the whole file again in the SQL Editor after updating.

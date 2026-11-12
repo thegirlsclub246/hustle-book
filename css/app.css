@@ -204,3 +204,14 @@ button.wa{width:100%;padding:12px;border-radius:10px;font-size:15px;background:v
 .swatch[aria-pressed="true"],.swatch[data-on]{box-shadow:0 0 0 3px var(--ink)}
 .swatch.custom{background:conic-gradient(#e85d75,#f0b400,#1e7a46,#0e7c86,#3f51b5,#8e44ad,#e85d75);display:block;overflow:hidden}
 .swatch.custom input{opacity:0;position:absolute;inset:0;width:100%;height:100%;cursor:pointer;padding:0;border:0}
+/* ---- service categories ---- */
+.catadd{display:flex;gap:8px}
+.catadd input{flex:1}
+.svcgroup{display:flex;flex-direction:column;gap:6px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+.svccat{display:flex;gap:6px;align-items:center}
+.svccat input{flex:1;font-weight:600}
+.svccat strong{font-size:13px;color:var(--muted);padding:4px 2px}
+.svccatpick{grid-column:1/-1;font-size:13px;padding:5px 8px}
+.catchips{margin-bottom:4px}
+.cathead{font-family:var(--display);font-size:15px;font-weight:600;margin:6px 0 2px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+#bkServices{display:flex;flex-direction:column;gap:6px}

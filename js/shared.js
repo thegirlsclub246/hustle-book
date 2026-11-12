@@ -60,6 +60,8 @@ const stars=n=>"★★★★★".slice(0,n)+"☆☆☆☆☆".slice(0,5-n);
 const live=s=>s.active&&(!s.ends||s.ends>=TODAY);
 const svc=n=>state.services.find(s=>s.name===n);
 function bundles(){return state.specials.filter(s=>s.kind==="bundle"&&live(s)).map(s=>({name:s.name,price:+s.price,mins:sum(s.includes,n=>(svc(n)||{mins:30}).mins),bundle:true,includes:s.includes,full:sum(s.includes,n=>(svc(n)||{price:0}).price)}))}
+// Categories, e.g. "Nails" holding Gel manicure and Acrylic full set. Kept in the order the owner made them.
+const catsOf=()=>[...new Set((state.settings.cats||[]).concat(state.services.map(s=>s.cat||"").filter(Boolean)))];
 const allServices=()=>state.services.concat(bundles());
 const priceOf=n=>{const s=allServices().find(x=>x.name===n);return s?+s.price:0};
 const minsOf=n=>{const s=allServices().find(x=>x.name===n);return s?+s.mins||30:30};

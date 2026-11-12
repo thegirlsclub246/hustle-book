@@ -2,7 +2,7 @@
 const QS=new URLSearchParams(location.search);
 const slug=(QS.get("b")||"").toLowerCase(),RID=QS.get("r"),REVIEW=QS.has("review");
 const bk={service:null,date:null,time:null};
-let mine=null,moving=false; // the client's own booking, when they open their change-or-cancel link
+let mine=null,moving=false,bkCat=""; // the client's own booking, when they open their change-or-cancel link
 const MAX_AHEAD=90;let calOffset=0,biz=null,busy=[],busyFor=null,sending=false;
 const toMin=t=>{const [h,m]=String(t).split(":").map(Number);return h*60+(m||0)};
 
@@ -116,7 +116,17 @@ function renderBook(){
   const sp=state.specials.filter(live);
   $("bkSpecials").hidden=!sp.length||managing()||moving;
   $("bkSpecials").innerHTML=`<strong>Specials</strong>`+sp.map(s=>`<span><b>${esc(s.name)}:</b> ${esc(specialText(s))}</span>`).join("");
-  $("bkServices").innerHTML=allServices().filter(s=>+s.price>0).map(s=>`<button type="button" class="choice" data-sv="${esc(s.name)}" aria-pressed="${bk.service===s.name}"><span>${esc(s.name)}</span><b>${money(s.price)}</b><small>${s.bundle?esc(s.includes.join(" + ")):s.mins+" min"}</small></button>`).join("")||`<p class="note">This business hasn't added any services yet.</p>`;
+  const card=s=>`<button type="button" class="choice" data-sv="${esc(s.name)}" aria-pressed="${bk.service===s.name}"><span>${esc(s.name)}</span><b>${money(s.price)}</b><small>${s.bundle?esc(s.includes.join(" + ")):s.mins+" min"}</small></button>`;
+  const avail=allServices().filter(s=>+s.price>0);
+  // Group by category: one heading per category, then anything without one, then bundles.
+  const groups=catsOf().map(c=>[c,avail.filter(s=>!s.bundle&&s.cat===c)]).concat([["Other",avail.filter(s=>!s.bundle&&!s.cat)],["Bundles",avail.filter(s=>s.bundle)]]).filter(g=>g[1].length);
+  const grouped=groups.length>1;
+  if(bkCat&&!groups.some(g=>g[0]===bkCat))bkCat="";
+  $("bkCats").hidden=!grouped;
+  $("bkCats").innerHTML=grouped?[["","All"]].concat(groups.map(g=>[g[0],g[0]])).map(([v,l])=>`<button type="button" class="chip" data-cat="${esc(v)}" aria-pressed="${bkCat===v}">${esc(l)}</button>`).join(""):"";
+  $("bkServices").innerHTML=!avail.length?`<p class="note">This business hasn't added any services yet.</p>`
+    :grouped?groups.filter(g=>!bkCat||g[0]===bkCat).map(g=>`<h3 class="cathead">${esc(g[0])}</h3><div class="choices">${g[1].map(card).join("")}</div>`).join("")
+    :`<div class="choices">${avail.map(card).join("")}</div>`;
   renderCal();
   const len=bk.service?minsOf(bk.service):30,nowM=now.getHours()*60+now.getMinutes();
   const busyM=busy.map(b=>({start:toMin(b.slot_time),mins:+b.mins||30}));
@@ -144,6 +154,7 @@ function updateMsg(){
 }
 $("bookView").addEventListener("click",e=>{
   const b=e.target.closest("button");if(!b||b.disabled)return;
+  if(b.dataset.cat!==undefined){bkCat=b.dataset.cat;renderBook();return}
   if(b.dataset.sv)bk.service=b.dataset.sv;
   else if(b.dataset.day){bk.date=b.dataset.day;bk.time=null;renderBook();loadBusy(bk.date);return}
   else if(b.dataset.time)bk.time=b.dataset.time;

@@ -60,7 +60,8 @@ const sorted=()=>state.items.slice().sort((a,b)=>(a.date+a.time).localeCompare(b
 function weekStart(){const d=new Date(now);d.setDate(d.getDate()-(d.getDay()+6)%7);return iso(d)}
 
 function serviceOptions(withBundles=true){
-  let h=state.services.map(s=>`<option value="${esc(s.name)}">${esc(s.name)} · ${money(s.price)}</option>`).join("");
+  const opt=s=>`<option value="${esc(s.name)}">${esc(s.name)} · ${money(s.price)}</option>`,cats=catsOf();
+  let h=cats.length?state.services.filter(s=>!s.cat).map(opt).join("")+cats.map(c=>{const l=state.services.filter(s=>s.cat===c);return l.length?`<optgroup label="${esc(c)}">${l.map(opt).join("")}</optgroup>`:""}).join(""):state.services.map(opt).join("");
   const b=bundles();if(withBundles&&b.length)h+=`<optgroup label="Bundles">${b.map(s=>`<option value="${esc(s.name)}">${esc(s.name)} · ${money(s.price)}</option>`).join("")}</optgroup>`;
   return h;
 }
@@ -144,7 +145,13 @@ function renderMoney(){
 }
 
 function renderServices(){
-  $("svcList").innerHTML=state.services.map((s,k)=>`<div class="svcrow"><input aria-label="Service name" data-svc="${k}" data-f="name" value="${esc(s.name)}"><input aria-label="Price" type="number" min="0" data-svc="${k}" data-f="price" value="${s.price}"><input aria-label="Minutes" type="number" min="5" step="5" data-svc="${k}" data-f="mins" value="${s.mins}"><button type="button" class="danger" data-rmsvc="${k}" aria-label="Remove ${esc(s.name)}">✕</button></div>`).join("");
+  const cats=catsOf();
+  const row=(s,k)=>`<div class="svcrow"><input aria-label="Service name" data-svc="${k}" data-f="name" value="${esc(s.name)}"><input aria-label="Price" type="number" min="0" data-svc="${k}" data-f="price" value="${s.price}"><input aria-label="Minutes" type="number" min="5" step="5" data-svc="${k}" data-f="mins" value="${s.mins}"><button type="button" class="danger" data-rmsvc="${k}" aria-label="Remove ${esc(s.name)}">✕</button>
+    ${cats.length?`<select class="svccatpick" aria-label="Category for ${esc(s.name)}" data-svc="${k}" data-f="cat"><option value="">No category</option>${cats.map(c=>`<option${s.cat===c?" selected":""}>${esc(c)}</option>`).join("")}</select>`:""}</div>`;
+  if(!cats.length){$("svcList").innerHTML=state.services.map(row).join("");return}
+  const groups=cats.concat("").map(c=>({c,list:state.services.map((s,k)=>[s,k]).filter(([s])=>(s.cat||"")===c)})).filter(g=>g.c||g.list.length);
+  $("svcList").innerHTML=groups.map(g=>`<div class="svcgroup">${g.c?`<div class="svccat"><input aria-label="Category name" data-catname="${esc(g.c)}" value="${esc(g.c)}"><button type="button" data-addin="${esc(g.c)}">+ Service</button><button type="button" class="danger" data-rmcat="${esc(g.c)}" aria-label="Remove category ${esc(g.c)}">✕</button></div>`:`<div class="svccat"><strong>No category</strong></div>`}
+    ${g.list.map(([s,k])=>row(s,k)).join("")||`<p class="note">No services here yet. Tap "+ Service" or move one here.</p>`}</div>`).join("");
 }
 function renderSpecials(){
   $("spList").innerHTML=state.specials.length?state.specials.map(s=>`<div class="row" style="grid-template-columns:1fr auto"><div class="who"><strong>${esc(s.name)}</strong><span>${esc(specialText(s))}</span></div><span class="pill ${live(s)?"p-paid":"p-booked"}">${s.active?(live(s)?"On":"Ended"):"Off"}</span>
@@ -292,8 +299,12 @@ $("pane-setup").addEventListener("change",e=>{
     if(k==="instagram")t.value=igHandle(t.value)?"@"+igHandle(t.value):"";
     if((k==="breakFrom"||k==="breakTo")&&+$("setBreakFrom").value&&+$("setBreakTo").value&&+$("setBreakTo").value<=+$("setBreakFrom").value){t.value=String(state.settings[k]||0);toast("The break has to end after it starts");return}
     state.settings[k]=t.type==="checkbox"?t.checked:NUMERIC.includes(k)?Math.max(0,+t.value||0):t.value.trim();save();render();toast("Saved");return}
+  if(t.dataset.catname!==undefined){const old=t.dataset.catname,nv=t.value.trim();
+    if(!nv||(nv!==old&&catsOf().includes(nv))){t.value=old;toast(nv?"You already have a category with that name":"Give the category a name");return}
+    state.settings.cats=catsOf().map(c=>c===old?nv:c);state.services.forEach(s=>{if(s.cat===old)s.cat=nv});save();renderServices();render();toast("Category renamed");return}
   if(t.dataset.svc!==undefined){const s=state.services[+t.dataset.svc],f=t.dataset.f;if(!s)return;
     if(f==="name"){const old=s.name,nv=t.value.trim();if(!nv){t.value=old;return}s.name=nv;state.specials.forEach(sp=>{if(sp.service===old)sp.service=nv;if(sp.includes)sp.includes=sp.includes.map(n=>n===old?nv:n)})}
+    else if(f==="cat")s.cat=t.value;
     else s[f]=Math.max(0,+t.value||0);
     save();render();toast("Saved")}
 });
@@ -324,7 +335,15 @@ $("offAdd").addEventListener("click",()=>{
   toast(clash?`Days off added. You already have ${clash} booking${clash>1?"s":""} then, so let them know.`:"Days off added. Clients can't book those dates.");
 });
 $("offList").addEventListener("click",e=>{const b=e.target.closest("[data-rmoff]");if(!b)return;state.settings.daysOff=(state.settings.daysOff||[]).filter(o=>o.from!==b.dataset.rmoff);save();renderHours();toast("Days off removed")});
-$("addSvc").addEventListener("click",()=>{state.services.push({name:"New service "+(state.services.length+1),price:0,mins:30});save();renderServices();render();const ins=$("svcList").querySelectorAll("input[data-f=name]");ins[ins.length-1].select()});
+function addService(cat){const sv={name:"New service "+(state.services.length+1),price:0,mins:30};if(cat)sv.cat=cat;state.services.push(sv);save();renderServices();render();const k=state.services.length-1,inp=$("svcList").querySelector(`input[data-svc="${k}"][data-f=name]`);if(inp)inp.select()}
+$("addSvc").addEventListener("click",()=>addService(""));
+$("addCat").addEventListener("click",()=>{const n=$("newCat").value.trim();if(!n){toast("Type a name for the category");return}if(catsOf().includes(n)){toast("You already have that category");return}
+  state.settings.cats=catsOf().concat(n);$("newCat").value="";save();renderServices();render();toast(`${n} added. Pick it next to each service, or tap "+ Service".`)});
+$("newCat").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();$("addCat").click()}});
+$("svcList").addEventListener("click",e=>{
+  const a=e.target.closest("[data-addin]");if(a){addService(a.dataset.addin);return}
+  const r=e.target.closest("[data-rmcat]");if(r){const c=r.dataset.rmcat;state.settings.cats=catsOf().filter(x=>x!==c);state.services.forEach(s=>{if(s.cat===c)delete s.cat});save();renderServices();render();toast(`${c} removed. Its services are kept.`)}
+});
 function spKindUI(){const k=$("spKind").value;$("spValueLabel").textContent=k==="percent"?"Percent off":k==="amount"?"Dollars off":"Bundle price ($)";$("spServiceWrap").hidden=k==="bundle";$("spInclWrap").hidden=k!=="bundle"}
 $("spKind").addEventListener("change",spKindUI);
 $("spForm").addEventListener("submit",e=>{
