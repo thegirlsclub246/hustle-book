@@ -55,12 +55,32 @@ function start(row){
   showTab(["today","clients","money","setup"].includes(tab)?tab:"today");spKindUI();
   setSync("All changes saved","ok");
   setTimeout(()=>HBGuide.firstRun(),700);
+  offerImport();
   loadRequests();setInterval(loadRequests,60000);
   document.addEventListener("visibilitychange",()=>{if(!document.hidden)loadRequests()});
 }
 function setLink(slug){
   BOOK_LINK=new URL("book.html?b="+encodeURIComponent(slug),location.href).href;
   $("bookLink").textContent=BOOK_LINK;$("previewBook").href=BOOK_LINK;$("setSlug").value=slug;
+}
+
+// ---------- bring over data from the on-phone version ----------
+function offerImport(){
+  let old=null;try{old=JSON.parse(localStorage.getItem("hustlebook.v2"))}catch(e){}
+  if(!old||old.sample||old.imported)return;
+  const n=(old.items||[]).length,c=(old.clients||[]).length;if(!n&&!c)return;
+  const box=document.createElement("section");box.className="card";box.id="importCard";
+  box.innerHTML=`<h2>Bring over your bookings?</h2><p class="note">We found ${n} booking${n===1?"":"s"} and ${c} client${c===1?"":"s"} saved on this phone from the earlier Hustle Book. Add them to your account so they're safe and on every device.</p><button type="button" class="primary" id="impYes">Bring them over</button><button type="button" id="impNo">Not now</button>`;
+  $("pane-today").prepend(box);
+  $("impNo").addEventListener("click",()=>box.remove());
+  $("impYes").addEventListener("click",()=>{
+    const known=new Set(state.items.map(i=>i.date+i.time+norm(i.name)));
+    (old.items||[]).forEach(i=>{if(!known.has(i.date+i.time+norm(i.name)))state.items.push({...i,id:uid++})});
+    (old.clients||[]).forEach(c=>{const have=findClient(c.name);if(!have)state.clients.push(c);else{if(!have.notes&&c.notes)have.notes=c.notes;if(!have.photo&&c.photo)have.photo=c.photo;if(!have.phone&&c.phone)have.phone=c.phone}});
+    if(!state.specials.length&&old.specials)state.specials=old.specials;
+    old.imported=true;try{localStorage.setItem("hustlebook.v2",JSON.stringify(old))}catch(e){}
+    save();render();box.remove();toast(`Brought over ${n} bookings and ${c} clients`);
+  });
 }
 
 // ---------- first-time setup ----------
