@@ -180,6 +180,15 @@
       <h2>Days and hours</h2>
       <p class="note full">Tick the days you take bookings. Customers can only pick times inside these hours.</p>
       <div class="full hours" id="setHours"></div>
+      <label class="full">Start times<select id="setStep" data-set="slotStep"><option value="len">Match the service length</option><option value="15">Every 15 minutes</option><option value="30">Every 30 minutes</option><option value="60">Every hour</option></select></label>
+      <div class="full"><label>Daily break (optional)</label><div class="hrow" style="grid-template-columns:1fr auto 1fr"><select id="setBreakFrom" data-set="breakFrom" aria-label="Break starts"></select><span class="note">to</span><select id="setBreakTo" data-set="breakTo" aria-label="Break ends"></select></div></div>
+      <p class="note full">With "Match the service length", a 2-hour service is offered at 9am, 11am, 1pm and so on, plus straight after any booking ends, so your day fills up with no gaps. Nobody can book into your break or past closing time.</p>
+      <h2 class="full" style="font-size:16px">Days off</h2>
+      <p class="note full">Holidays, vacation or a day you're busy. Clients can't book these dates.</p>
+      <div class="full list" id="offList"></div>
+      <label>From<input id="offFrom" type="date"></label>
+      <label>To (optional)<input id="offTo" type="date"></label>
+      <div class="full btns"><button type="button" id="offAdd">Add days off</button></div>
     </section>
 
     <section class="card">

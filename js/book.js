@@ -92,7 +92,7 @@ function renderCal(){
   const lead=(m.getDay()+6)%7;for(let k=0;k<lead;k++)h+="<span></span>";
   const dim=new Date(m.getFullYear(),m.getMonth()+1,0).getDate();
   for(let d=1;d<=dim;d++){const dt=new Date(m.getFullYear(),m.getMonth(),d),ds=iso(dt);
-    const closed=!S.openDays.includes(dt.getDay()),off=ds<TODAY||ds>last||closed;
+    const closed=!S.openDays.includes(dt.getDay())||!!offOn(S,ds),off=ds<TODAY||ds>last||closed;
     h+=`<button type="button" data-day="${ds}" aria-pressed="${bk.date===ds}"${off?" disabled":""}${ds===TODAY?' class="today"':""} aria-label="${dt.toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long"})}${closed?", closed":""}">${d}</button>`}
   $("calGrid").innerHTML=h;
   $("bkDayNote").textContent=bk.date?"You picked "+dateObj(bk.date).toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long"})+".":"Crossed-out days are closed. You can book up to 3 months ahead.";
@@ -105,12 +105,14 @@ function renderBook(){
   $("bkSpecials").innerHTML=`<strong>Specials</strong>`+sp.map(s=>`<span><b>${esc(s.name)}:</b> ${esc(specialText(s))}</span>`).join("");
   $("bkServices").innerHTML=allServices().filter(s=>+s.price>0).map(s=>`<button type="button" class="choice" data-sv="${esc(s.name)}" aria-pressed="${bk.service===s.name}"><span>${esc(s.name)}</span><b>${money(s.price)}</b><small>${s.bundle?esc(s.includes.join(" + ")):s.mins+" min"}</small></button>`).join("")||`<p class="note">This business hasn't added any services yet.</p>`;
   renderCal();
-  const times=[];
-  const [o,c]=bk.date?hoursOn(S,dateObj(bk.date).getDay()):[+S.open,+S.close],len=bk.service?minsOf(bk.service):30;
-  for(let m=o*60;m+Math.min(len,c*60-o*60)<=c*60;m+=30){if(bk.date===TODAY&&m<=now.getHours()*60+now.getMinutes())continue;times.push(pad(Math.floor(m/60))+":"+pad(m%60))}
+  const len=bk.service?minsOf(bk.service):30,nowM=now.getHours()*60+now.getMinutes();
+  const busyM=busy.map(b=>({start:toMin(b.slot_time),mins:+b.mins||30}));
+  // Grid times show even when taken (crossed out); extra times after a booking only show when free.
+  const grid=bk.date?startTimes({...S,breakFrom:0,breakTo:0},dateObj(bk.date).getDay(),len,[]):[];
+  const times=!bk.date?[]:startTimes(S,dateObj(bk.date).getDay(),len,busyM).filter(m=>!(bk.date===TODAY&&m<=nowM)).map(m=>pad(Math.floor(m/60))+":"+pad(m%60)).filter(t=>grid.includes(toMin(t))||!isTaken(t));
   if(bk.time&&(isTaken(bk.time)||!times.includes(bk.time)))bk.time=null;
   const loading=bk.date&&busyFor===bk.date&&!busy.length&&false;
-  $("bkTimes").innerHTML=!bk.date?`<span class="note">Pick a day first.</span>`:times.length?times.map(t=>{const taken=isTaken(t);return `<button type="button" class="chip" data-time="${t}" aria-pressed="${bk.time===t}"${taken?` disabled aria-label="${to12(t)}, taken"`:""}>${to12(t)}</button>`}).join(""):`<span class="note">No times left today. Try another day.</span>`;
+  $("bkTimes").innerHTML=!bk.date?`<span class="note">Pick a day first.</span>`:times.length?times.map(t=>{const taken=isTaken(t);return `<button type="button" class="chip" data-time="${t}" aria-pressed="${bk.time===t}"${taken?` disabled aria-label="${to12(t)}, taken"`:""}>${to12(t)}</button>`}).join(""):`<span class="note">No times left on this day. Try another day.</span>`;
   $("bkTimeNote").textContent=bk.date&&busy.length?"Crossed-out times are already booked.":"";
   const dep=+S.deposit;
   $("bkFoot").textContent=moving?"Your old time is let go once you move.":(S.instant?`You're booked as soon as you tap the button. ${S.name} will message you on WhatsApp.`:`${S.name} will confirm on WhatsApp.`)+(dep?` A ${money(dep)} deposit holds your slot and comes off your bill.`:"");

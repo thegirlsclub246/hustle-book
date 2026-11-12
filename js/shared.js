@@ -21,9 +21,24 @@ const newId=p=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 // Opening hours for a day of the week (0 = Sunday). dayHours overrides the default open/close for that day.
 // Hours are decimals, so 16.5 means 4:30pm.
 function hoursOn(S,dow){const h=S.dayHours&&S.dayHours[dow];return h&&h.length===2?[+h[0],+h[1]]:[+S.open,+S.close]}
+// Days the owner has blocked off (holidays, vacation), as {from,to} dates.
+const offOn=(S,ds)=>(S.daysOff||[]).find(o=>o.from<=ds&&ds<=(o.to||o.from));
+// Start times a client can pick on a day, in minutes from midnight.
+// Times are spaced by the service length (or a fixed gap the owner picks), and also start right after
+// each booking ends, so the day fills up without awkward gaps. Nothing runs into the break or past closing.
+function startTimes(S,dow,len,busy){
+  const [o,c]=hoursOn(S,dow),open=o*60,close=c*60,L=Math.min(len,close-open);
+  const step=S.slotStep&&S.slotStep!=="len"?+S.slotStep:Math.max(15,len);
+  const bf=+S.breakFrom*60,bt=+S.breakTo*60,hasBreak=bt>bf&&bf>0;
+  // Count up from opening time, and again from the end of the break.
+  const c2=new Set();for(let m=open;m+L<=close&&!(hasBreak&&m>=bt);m+=step)c2.add(m);
+  if(hasBreak)for(let m=bt;m+L<=close;m+=step)c2.add(m);
+  busy.forEach(b=>c2.add(b.start+b.mins));
+  return [...c2].filter(m=>m>=open&&m+L<=close&&!(hasBreak&&m<bt&&bf<m+L)).sort((a,b)=>a-b);
+}
 const hm=x=>pad(Math.floor(x))+":"+pad(Math.round((x%1)*60));
 
-const DEFAULT_SETTINGS={type:"barber",name:"",area:"",whatsapp:"",deposit:0,payLink:"",payDetails:"",instant:false,changeHours:24,comeBack:21,loyaltyEvery:10,loyaltyReward:"free",open:9,close:19,openDays:[1,2,3,4,5,6]};
+const DEFAULT_SETTINGS={type:"barber",name:"",area:"",whatsapp:"",deposit:0,payLink:"",payDetails:"",instant:false,changeHours:24,slotStep:"len",breakFrom:0,breakTo:0,daysOff:[],comeBack:21,loyaltyEvery:10,loyaltyReward:"free",open:9,close:19,openDays:[1,2,3,4,5,6]};
 
 // ---------- deposits and WhatsApp ----------
 // How to pay the deposit, for messages: "here: https://paypal.me/x" or "by bank transfer to RBC 123…".

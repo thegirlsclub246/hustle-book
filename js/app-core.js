@@ -156,13 +156,18 @@ function renderSpecials(){
 function fillSettings(){
   const s=state.settings;
   $("setType").innerHTML=Object.entries(TYPES).map(([k,t])=>`<option value="${k}">${t.label}</option>`).join("");$("setType").value=s.type||"barber";
-  $("setName").value=s.name;$("setArea").value=s.area;$("setWa").value=s.whatsapp;$("setDep").value=s.deposit;$("setPayLink").value=s.payLink||"";$("setPayDetails").value=s.payDetails||"";$("setInstant").checked=!!s.instant;$("setChange").value=s.changeHours;renderHours();
+  $("setName").value=s.name;$("setArea").value=s.area;$("setWa").value=s.whatsapp;$("setDep").value=s.deposit;$("setPayLink").value=s.payLink||"";$("setPayDetails").value=s.payDetails||"";$("setInstant").checked=!!s.instant;$("setChange").value=s.changeHours;$("setStep").value=String(s.slotStep||"len");renderHours();
   $("setLoy").value=s.loyaltyEvery;$("setLoyR").value=s.loyaltyReward;$("setCome").value=s.comeBack;
   $("bookLink").textContent=BOOK_LINK;
 }
 function renderHours(){
   const s=state.settings;
   const opts=v=>{let h="";for(let m=300;m<=1440;m+=30){const x=m/60;h+=`<option value="${x}"${Math.abs(+v-x)<.01?" selected":""}>${m===1440?"Midnight":to12(hm(x))}</option>`}return h};
+  const bo=v=>`<option value="0">No break</option>`+opts(v);
+  $("setBreakFrom").innerHTML=bo(s.breakFrom);$("setBreakTo").innerHTML=bo(s.breakTo);
+  if(!+s.breakFrom)$("setBreakFrom").value="0";if(!+s.breakTo)$("setBreakTo").value="0";
+  const off=(s.daysOff||[]).filter(o=>(o.to||o.from)>=TODAY).sort((a,b)=>a.from.localeCompare(b.from));
+  $("offList").innerHTML=off.length?off.map(o=>`<div class="row" style="grid-template-columns:1fr auto"><div class="who"><strong>${prettyDate(o.from)}${o.to&&o.to!==o.from?" to "+prettyDate(o.to):""}</strong></div><button type="button" class="danger" data-rmoff="${o.from}">Remove</button></div>`).join(""):`<div class="empty">No days off coming up.</div>`;
   $("setHours").innerHTML=[1,2,3,4,5,6,0].map(d=>{const on=s.openDays.includes(d),[o,c]=hoursOn(s,d),day=DAYNAMES[d].slice(0,-1);
     return `<div class="hrow"><label class="check"><input type="checkbox" data-hday="${d}" data-hf="on"${on?" checked":""} aria-label="Open on ${day}">${day.slice(0,3)}</label><select data-hday="${d}" data-hf="o" aria-label="${day} opens at"${on?"":" disabled"}>${opts(o)}</select><span class="note">to</span><select data-hday="${d}" data-hf="c" aria-label="${day} closes at"${on?"":" disabled"}>${opts(c)}</select></div>`}).join("");
 }
@@ -274,7 +279,7 @@ $("mNext").addEventListener("click",()=>{if(monthOffset<0){monthOffset++;renderM
 $("mCopy").addEventListener("click",()=>{const t=$("mText").textContent;try{navigator.clipboard.writeText(t).then(()=>toast("Summary copied"),()=>toast("Select the summary and copy it"))}catch(e){toast("Select the summary and copy it")}});
 
 // ---------- setup ----------
-const NUMERIC=["deposit","comeBack","loyaltyEvery","open","close","changeHours"];
+const NUMERIC=["deposit","comeBack","loyaltyEvery","open","close","changeHours","breakFrom","breakTo"];
 $("pane-setup").addEventListener("change",e=>{
   const t=e.target;
   if(t.dataset.hday!==undefined){const d=+t.dataset.hday,s=state.settings;
@@ -283,6 +288,7 @@ $("pane-setup").addEventListener("change",e=>{
     save();renderHours();toast("Saved");return}
   if(t.dataset.set){const k=t.dataset.set;
     if(k==="payLink"&&t.value.trim()&&!safeUrl(t.value)){toast("Paste the full link, starting with https://");return}
+    if((k==="breakFrom"||k==="breakTo")&&+$("setBreakFrom").value&&+$("setBreakTo").value&&+$("setBreakTo").value<=+$("setBreakFrom").value){t.value=String(state.settings[k]||0);toast("The break has to end after it starts");return}
     state.settings[k]=t.type==="checkbox"?t.checked:NUMERIC.includes(k)?Math.max(0,+t.value||0):t.value.trim();save();render();toast("Saved");return}
   if(t.dataset.svc!==undefined){const s=state.services[+t.dataset.svc],f=t.dataset.f;if(!s)return;
     if(f==="name"){const old=s.name,nv=t.value.trim();if(!nv){t.value=old;return}s.name=nv;state.specials.forEach(sp=>{if(sp.service===old)sp.service=nv;if(sp.includes)sp.includes=sp.includes.map(n=>n===old?nv:n)})}
@@ -295,6 +301,15 @@ $("pane-setup").addEventListener("click",e=>{
     if(s.dataset.sp==="del"){const n=state.specials[k].name;state.specials.splice(k,1);toast(`${n} deleted`)}else{state.specials[k].active=!state.specials[k].active;toast(state.specials[k].active?"Special turned on":"Special turned off")}
     save();render()}
 });
+$("offAdd").addEventListener("click",()=>{
+  let from=$("offFrom").value,to=$("offTo").value||from;if(!from){toast("Pick the first day off");return}
+  if(to<from)[from,to]=[to,from];
+  const S=state.settings;S.daysOff=(S.daysOff||[]).filter(o=>(o.to||o.from)>=TODAY).concat({from,to});
+  $("offFrom").value=$("offTo").value="";save();renderHours();
+  const clash=state.items.filter(i=>i.status==="booked"&&i.date>=from&&i.date<=to).length;
+  toast(clash?`Days off added. You already have ${clash} booking${clash>1?"s":""} then, so let them know.`:"Days off added. Clients can't book those dates.");
+});
+$("offList").addEventListener("click",e=>{const b=e.target.closest("[data-rmoff]");if(!b)return;state.settings.daysOff=(state.settings.daysOff||[]).filter(o=>o.from!==b.dataset.rmoff);save();renderHours();toast("Days off removed")});
 $("addSvc").addEventListener("click",()=>{state.services.push({name:"New service "+(state.services.length+1),price:0,mins:30});save();renderServices();render();const ins=$("svcList").querySelectorAll("input[data-f=name]");ins[ins.length-1].select()});
 function spKindUI(){const k=$("spKind").value;$("spValueLabel").textContent=k==="percent"?"Percent off":k==="amount"?"Dollars off":"Bundle price ($)";$("spServiceWrap").hidden=k==="bundle";$("spInclWrap").hidden=k!=="bundle"}
 $("spKind").addEventListener("change",spKindUI);
