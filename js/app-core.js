@@ -104,7 +104,7 @@ function renderClients(){
   const due=dueBack();
   $("dueBadge").textContent=due.length;$("dueBadge").hidden=!due.length;
   $("dueNote").textContent=`${state.settings.comeBack}+ days`;
-  $("dueList").innerHTML=due.length?due.map(({c,s})=>`<div class="row" style="grid-template-columns:40px 1fr auto">${avatar(c)}<div class="who"><strong>${esc(c.name)}</strong><span>Last in ${daysBetween(s.last,TODAY)} days ago${s.usual?" · usually "+esc(s.usual.toLowerCase()):""}</span></div><button class="primary" data-due="${c.id}">Message</button><div class="msg" hidden></div></div>`).join(""):`<div class="empty">Everyone's been in recently. Nice.</div>`;
+  $("dueList").innerHTML=due.length?due.map(({c,s})=>`<div class="row" style="grid-template-columns:40px 1fr auto">${avatar(c)}<div class="who"><strong>${esc(c.name)}</strong><span>Last visit ${daysBetween(s.last,TODAY)} days ago${s.usual?" · usually "+esc(s.usual.toLowerCase()):""}</span></div><button class="primary" data-due="${c.id}">Message</button><div class="msg" hidden></div></div>`).join(""):`<div class="empty">Everyone's been in recently. Nice.</div>`;
   const q=norm($("clientSearch").value),qd=q.replace(/\D/g,"");
   const cs=state.clients.slice().sort((a,b)=>a.name.localeCompare(b.name)).filter(c=>!q||norm(c.name).includes(q)||(qd&&(c.phone||"").replace(/\D/g,"").includes(qd)));
   $("clientCount").textContent=state.clients.length+" saved";
