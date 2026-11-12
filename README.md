@@ -15,14 +15,23 @@ It's plain HTML, CSS and JavaScript with no build step. Data lives in [Supabase]
 | `app.html` | The owner's app: Today, Clients, Money and Setup tabs |
 | `book.html?b=<name>` | A business's public booking page |
 | `supabase/schema.sql` | Database tables and security rules |
+| `manifest.webmanifest`, `icons/`, `sw.js` | Home-screen install with the Hustle Kit logo, full-screen mode, offline fallback |
+| `js/guide.js`, `js/tour.js` | "Add to Home Screen" steps (iPhone, Android, Samsung, computer) and the walkthrough |
 
 ## Set up (about 10 minutes)
 
 1. **Create a Supabase project.** Sign up at supabase.com, click **New project**, pick a name and a database password, and choose the region closest to Barbados (US East).
 2. **Create the database.** In the project, open **SQL Editor → New query**, paste everything from `supabase/schema.sql`, and click **Run**.
 3. **Allow sign-in links to your site.** Open **Authentication → URL Configuration**. Set **Site URL** to where the app lives, for example `https://hustlekit-c60.pages.dev/hustle-book/`, and add `https://hustlekit-c60.pages.dev/hustle-book/app.html` under **Redirect URLs**.
-4. **Connect the app.** Open **Project Settings → API**. Copy the **Project URL** and the **anon public** key into `js/config.js`. Never use the `service_role` key here.
-5. **Put it online.** Upload the folder to your host. On Cloudflare Pages, either connect this GitHub repo (no build command, output folder `/`) or drag the folder into a direct upload.
+4. **Add the sign-in code to the email.** Open **Authentication → Emails → Magic Link** and replace the message with:
+   ```html
+   <h2>Your Hustle Book sign-in</h2>
+   <p><a href="{{ .ConfirmationURL }}">Tap here to sign in</a></p>
+   <p>Or type this code in the app: <strong>{{ .Token }}</strong></p>
+   ```
+   The code matters on iPhone: an app added to the home screen can't receive the link, so people type the code instead.
+5. **Connect the app.** Open **Project Settings → API**. Copy the **Project URL** and the **anon public** key into `js/config.js`. Never use the `service_role` key here.
+6. **Put it online.** Upload the folder to your host. On Cloudflare Pages, either connect this GitHub repo (no build command, output folder `/`) or drag the folder into a direct upload.
 
 ## Good to know
 

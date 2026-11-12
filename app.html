@@ -6,6 +6,14 @@
 <title>Hustle Book</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Inter:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="css/app.css">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0e6e62">
+<link rel="icon" href="icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Hustle Book">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 </head>
 <body>
 <div class="wrap" id="onboard"><p class="note">Loading your book…</p></div>
@@ -180,6 +188,13 @@
     </section>
 
     <section class="card">
+      <h2>Help</h2>
+      <p class="note">Put Hustle Book on your home screen so it opens like an app, or take the quick tour again.</p>
+      <button type="button" id="helpInstall">Add to home screen</button>
+      <button type="button" id="helpTour">Take the tour</button>
+    </section>
+
+    <section class="card">
       <h2>Your account</h2>
       <p class="note" id="acctEmail"></p>
       <label class="full">Booking link name<input id="setSlug" autocomplete="off" spellcheck="false"></label>
@@ -201,6 +216,8 @@
 <script src="js/db.js"></script>
 <script src="js/shared.js"></script>
 <script src="js/app-core.js"></script>
+<script src="js/guide.js"></script>
+<script src="js/tour.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

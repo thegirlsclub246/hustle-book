@@ -7,6 +7,14 @@
 <meta name="description" content="Bookings, payments, clients and invoices for small businesses and side hustles in Barbados.">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Inter:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="css/app.css">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0e6e62">
+<link rel="icon" href="icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Hustle Book">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 </head>
 <body>
 <div class="wrap">
@@ -19,6 +27,13 @@
       <label class="full">Your email<input id="email" type="email" required autocomplete="email" placeholder="you@example.com"></label>
       <button class="primary full" type="submit" id="loginBtn">Email me a sign-in link</button>
       <p class="note full" id="loginNote">No password needed. We email you a link. Tap it on this phone to open your book.</p>
+    </form>
+    <form id="codeForm" hidden>
+      <h2 class="full">Enter your code</h2>
+      <p class="note full">The email also has a 6-digit code. Type it here if the link opened somewhere else, for example when you use Hustle Book from your home screen.</p>
+      <label class="full">6-digit code<input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" required></label>
+      <button class="primary full" type="submit" id="codeBtn">Sign in</button>
+      <p class="err full" id="codeErr" hidden></p>
     </form>
   </section>
 
@@ -46,9 +61,20 @@
     const {error}=await sb.auth.signInWithOtp({email,options:{emailRedirectTo:new URL("app.html",location.href).href}});
     btn.disabled=false;btn.textContent="Email me a sign-in link";
     if(error){document.getElementById("loginNote").textContent="That didn't send: "+error.message+" Check the email address and try again.";return}
-    document.getElementById("loginNote").textContent=`Check ${email} for a link from Hustle Book. Tap it to open your book. It can take a minute, and may land in spam.`;
+    document.getElementById("loginNote").textContent=`Check ${email} for an email from Hustle Book. Tap the link, or type the code below. It can take a minute, and may land in spam.`;
+    document.getElementById("codeForm").hidden=false;
+  });
+  document.getElementById("codeForm").addEventListener("submit",async e=>{
+    e.preventDefault();
+    const email=document.getElementById("email").value.trim(),token=document.getElementById("code").value.trim(),err=document.getElementById("codeErr");
+    document.getElementById("codeBtn").disabled=true;
+    const {error}=await sb.auth.verifyOtp({email,token,type:"email"});
+    document.getElementById("codeBtn").disabled=false;
+    if(error){err.textContent="That code didn't work. Check it, or ask for a new email.";err.hidden=false;return}
+    location.replace("app.html");
   });
 })();
 </script>
+<script src="js/guide.js"></script>
 </body>
 </html>

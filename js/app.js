@@ -54,6 +54,7 @@ function start(row){
   let tab="today";try{tab=localStorage.getItem(TABKEY)||"today"}catch(e){}
   showTab(["today","clients","money","setup"].includes(tab)?tab:"today");spKindUI();
   setSync("All changes saved","ok");
+  setTimeout(()=>HBGuide.firstRun(),700);
   loadRequests();setInterval(loadRequests,60000);
   document.addEventListener("visibilitychange",()=>{if(!document.hidden)loadRequests()});
 }
