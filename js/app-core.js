@@ -3,13 +3,24 @@ function copyText(text,box){
   if(box){box.textContent=text;box.hidden=false}
   try{navigator.clipboard.writeText(text).then(()=>toast("Message copied. Paste it in WhatsApp."),()=>toast("Select the message and copy it"))}catch(e){toast("Select the message and copy it")}
 }
+// Opens WhatsApp with the message ready to send. Falls back to copying when there's no number.
+function sendWa(phone,text,box){
+  const url=waLink(phone,text);
+  if(!url){copyText(text,box);return false}
+  if(box)box.hidden=true;
+  window.open(url,"_blank","noopener");return true;
+}
+const phoneOf=b=>b.phone||(findClient(b.name)||{}).phone||"";
+const manageLink=id=>BOOK_LINK+"&r="+id;
+const reviewLink=()=>BOOK_LINK+"&review=1";
 function bookingReminder(b){
   const when=b.date===TODAY?"today":b.date===addDays(1)?"tomorrow":"on "+prettyDate(b.date);
   let t=`Hi ${first(b.name)}, just a reminder you're booked with ${state.settings.name} ${when} at ${to12(b.time)} for a ${b.service.toLowerCase()} (${money(b.price)}).`;
-  const dep=+state.settings.deposit;if(dep&&!b.deposit)t+=` To hold your slot, please send the ${money(dep)} deposit by bank transfer.`;
-  return t+" Reply if you need to change the time. See you then!";
+  const dep=+state.settings.deposit;if(dep&&!b.deposit)t+=` To hold your slot, please send the ${money(dep)} deposit ${depositHow(state.settings)}.`;
+  return t+(b.req?` Need to change or cancel? Use this link: ${manageLink(b.req)}`:" Reply if you need to change the time.")+" See you then!";
 }
-function paymentReminder(b){return `Hi ${first(b.name)}, hope you good. Just a reminder about the ${money(owedAmt(b))} for the ${b.service.toLowerCase()} on ${prettyDate(b.date)}. You can send it by bank transfer or bring cash next time. Thanks!`}
+function paymentReminder(b){return `Hi ${first(b.name)}, hope you good. Just a reminder about the ${money(owedAmt(b))} for the ${b.service.toLowerCase()} on ${prettyDate(b.date)}. You can send it ${depositHow(state.settings)}, or bring cash next time. Thanks!`}
+function reviewMsg(b){return `Hi ${first(b.name)}, thanks for coming to ${state.settings.name}! If you have a minute, a quick review really helps my business: ${reviewLink()}`}
 function comeBackMsg(c,s){
   const days=daysBetween(s.last,TODAY),w=Math.round(days/7);
   let t=`Hi ${first(c.name)}, it's been ${w>=2?w+" weeks":days+" days"} since your last ${(s.usual||"visit").toLowerCase()} at ${state.settings.name}. Want me to hold a spot for you this week? Pick a time here: ${BOOK_LINK}`;
@@ -18,7 +29,7 @@ function comeBackMsg(c,s){
 }
 
 // ---------- rendering ----------
-const STATUS={booked:["Booked","p-booked"],paid:["Paid","p-paid"],owed:["Owes","p-owed"],noshow:["No-show","p-noshow"]};
+const STATUS={booked:["Booked","p-booked"],paid:["Paid","p-paid"],owed:["Owes","p-owed"],noshow:["No-show","p-noshow"],cancelled:["Cancelled","p-noshow"]};
 function rowHTML(b,opts={}){
   let [lbl,cls]=STATUS[b.status];
   if(b.status==="paid"&&b.method)lbl+=" · "+b.method;
@@ -27,13 +38,15 @@ function rowHTML(b,opts={}){
   if(b.reward)tags.push(`<span class="tag gold">Loyalty reward</span>`);
   if(b.deposit)tags.push(`<span class="tag">${b.status==="noshow"?"Deposit kept":"Deposit in"} ${money(b.deposit)}</span>`);
   if(b.status==="owed"&&b.deposit)tags.push(`<span class="tag gold">Balance ${money(owedAmt(b))}</span>`);
-  let a="";const id=b.id;
+  if(b.status==="booked"&&b.reminded)tags.push(`<span class="tag">Reminded</span>`);
+  if(b.status==="cancelled")tags.push(`<span class="tag gold">Client cancelled</span>`);
+  let a="";const id=b.id,wa=waNumber(phoneOf(b)).length>=10;
   if(b.status==="booked"){
     a=`<button data-a="paid" data-id="${id}">Paid</button><button data-a="owed" data-id="${id}">Done, owes</button><button data-a="noshow" data-id="${id}">No-show</button>`;
     if(+state.settings.deposit&&!b.deposit)a+=`<button data-a="dep" data-id="${id}">Deposit in</button>`;
-    if(b.date>=TODAY)a+=`<button data-a="remind" data-id="${id}"${b.date===addDays(1)?' class="primary"':""}>Reminder</button>`;
-  }else if(b.status==="owed")a=`<button data-a="paid" data-id="${id}">Mark paid</button><button data-a="payrem" data-id="${id}">Payment reminder</button>`;
-  else if(b.status==="paid")a=METHODS.map(m=>`<button class="chip" data-a="method" data-m="${m}" data-id="${id}" aria-pressed="${b.method===m}">${m}</button>`).join("")+`<button data-a="booked" data-id="${id}">Undo</button>`;
+    if(b.date>=TODAY)a+=`<button data-a="remind" data-id="${id}"${b.date===addDays(1)&&!b.reminded?' class="primary"':""}>${wa?"Remind on WhatsApp":"Reminder"}</button>`;
+  }else if(b.status==="owed")a=`<button data-a="paid" data-id="${id}">Mark paid</button><button data-a="payrem" data-id="${id}">${wa?"Payment reminder on WhatsApp":"Payment reminder"}</button>`;
+  else if(b.status==="paid")a=METHODS.map(m=>`<button class="chip" data-a="method" data-m="${m}" data-id="${id}" aria-pressed="${b.method===m}">${m}</button>`).join("")+`<button data-a="review" data-id="${id}">${b.reviewAsked?"Asked for review ✓":"Ask for a review"}</button><button data-a="booked" data-id="${id}">Undo</button>`;
   else a=`<button data-a="booked" data-id="${id}">Undo</button>`;
   a+=`<button data-a="del" data-id="${id}" class="danger">Remove</button>`;
   const c=findClient(b.name);
@@ -47,7 +60,8 @@ const sorted=()=>state.items.slice().sort((a,b)=>(a.date+a.time).localeCompare(b
 function weekStart(){const d=new Date(now);d.setDate(d.getDate()-(d.getDay()+6)%7);return iso(d)}
 
 function serviceOptions(withBundles=true){
-  let h=state.services.map(s=>`<option value="${esc(s.name)}">${esc(s.name)} · ${money(s.price)}</option>`).join("");
+  const opt=s=>`<option value="${esc(s.name)}">${esc(s.name)} · ${money(s.price)}</option>`,cats=catsOf();
+  let h=cats.length?state.services.filter(s=>!s.cat).map(opt).join("")+cats.map(c=>{const l=state.services.filter(s=>s.cat===c);return l.length?`<optgroup label="${esc(c)}">${l.map(opt).join("")}</optgroup>`:""}).join(""):state.services.map(opt).join("");
   const b=bundles();if(withBundles&&b.length)h+=`<optgroup label="Bundles">${b.map(s=>`<option value="${esc(s.name)}">${esc(s.name)} · ${money(s.price)}</option>`).join("")}</optgroup>`;
   return h;
 }
@@ -65,6 +79,14 @@ function renderToday(){
     return `<div class="row"><div class="time">#${k+1}</div><div class="who"><strong>${esc(q.name)}</strong><span>${esc(q.service)} · ${k===0?"next up":"about "+w+" min wait"}</span>${c&&c.notes?`<em class="cnote">${esc(c.notes)}</em>`:""}</div><div class="right"><span class="price">${money(priceOf(q.service))}</span></div>
     <div class="actions"><button class="primary" data-q="start" data-id="${q.id}">Start now</button><button data-q="up" data-id="${q.id}"${k===0?" disabled":""}>Move up</button><button data-q="rm" data-id="${q.id}" class="danger">Left</button></div></div>`}).join(""):`<div class="empty">Nobody waiting. Add walk-ins below.</div>`;
   $("qWait").textContent=state.queue.length?`${state.queue.length} waiting · about ${wait} min of work`:"";
+  // tomorrow's reminders
+  const tm=items.filter(i=>i.date===addDays(1)&&i.status==="booked"),sent=tm.filter(i=>i.reminded).length;
+  $("remSection").hidden=!tm.length;
+  $("remCount").textContent=tm.length?`${sent} of ${tm.length} reminded`:"";
+  $("remList").innerHTML=tm.map(b=>{const ph=phoneOf(b),ok=waNumber(ph).length>=10;
+    return `<div class="row"><div class="time">${to12(b.time)}</div><div class="who"><strong>${esc(b.name)}</strong><span>${esc(b.service)}${ok?"":" · no WhatsApp number saved"}</span></div>
+    <div class="right">${b.reminded?`<span class="pill p-paid">Sent</span>`:""}</div>
+    <div class="actions"><button data-a="remind" data-id="${b.id}"${b.reminded?"":' class="primary"'}>${b.reminded?"Send again":ok?"Send on WhatsApp":"Copy reminder"}</button></div><div class="msg" hidden></div></div>`}).join("");
   const t=items.filter(i=>i.date===TODAY);
   $("todayCount").textContent=t.length?`${t.length} booking${t.length>1?"s":""} · ${money(sum(t.filter(i=>i.status!=="noshow"),i=>i.price))} if all pay`:"";
   $("todayList").innerHTML=t.length?t.map(b=>rowHTML(b)).join(""):`<div class="empty">Nothing booked today. Add one below.</div>`;
@@ -83,7 +105,7 @@ function renderClients(){
   const due=dueBack();
   $("dueBadge").textContent=due.length;$("dueBadge").hidden=!due.length;
   $("dueNote").textContent=`${state.settings.comeBack}+ days`;
-  $("dueList").innerHTML=due.length?due.map(({c,s})=>`<div class="row" style="grid-template-columns:40px 1fr auto">${avatar(c)}<div class="who"><strong>${esc(c.name)}</strong><span>Last in ${daysBetween(s.last,TODAY)} days ago${s.usual?" · usually "+esc(s.usual.toLowerCase()):""}</span></div><button class="primary" data-due="${c.id}">Message</button><div class="msg" hidden></div></div>`).join(""):`<div class="empty">Everyone's been in recently. Nice.</div>`;
+  $("dueList").innerHTML=due.length?due.map(({c,s})=>`<div class="row" style="grid-template-columns:40px 1fr auto">${avatar(c)}<div class="who"><strong>${esc(c.name)}</strong><span>Last visit ${daysBetween(s.last,TODAY)} days ago${s.usual?" · usually "+esc(s.usual.toLowerCase()):""}</span></div><button class="primary" data-due="${c.id}">Message</button><div class="msg" hidden></div></div>`).join(""):`<div class="empty">Everyone's been in recently. Nice.</div>`;
   const q=norm($("clientSearch").value),qd=q.replace(/\D/g,"");
   const cs=state.clients.slice().sort((a,b)=>a.name.localeCompare(b.name)).filter(c=>!q||norm(c.name).includes(q)||(qd&&(c.phone||"").replace(/\D/g,"").includes(qd)));
   $("clientCount").textContent=state.clients.length+" saved";
@@ -123,7 +145,13 @@ function renderMoney(){
 }
 
 function renderServices(){
-  $("svcList").innerHTML=state.services.map((s,k)=>`<div class="svcrow"><input aria-label="Service name" data-svc="${k}" data-f="name" value="${esc(s.name)}"><input aria-label="Price" type="number" min="0" data-svc="${k}" data-f="price" value="${s.price}"><input aria-label="Minutes" type="number" min="5" step="5" data-svc="${k}" data-f="mins" value="${s.mins}"><button type="button" class="danger" data-rmsvc="${k}" aria-label="Remove ${esc(s.name)}">✕</button></div>`).join("");
+  const cats=catsOf();
+  const row=(s,k)=>`<div class="svcrow"><input aria-label="Service name" data-svc="${k}" data-f="name" value="${esc(s.name)}"><input aria-label="Price" type="number" min="0" data-svc="${k}" data-f="price" value="${s.price}"><input aria-label="Minutes" type="number" min="5" step="5" data-svc="${k}" data-f="mins" value="${s.mins}"><button type="button" class="danger" data-rmsvc="${k}" aria-label="Remove ${esc(s.name)}">✕</button>
+    ${cats.length?`<select class="svccatpick" aria-label="Category for ${esc(s.name)}" data-svc="${k}" data-f="cat"><option value="">No category</option>${cats.map(c=>`<option${s.cat===c?" selected":""}>${esc(c)}</option>`).join("")}</select>`:""}</div>`;
+  if(!cats.length){$("svcList").innerHTML=state.services.map(row).join("");return}
+  const groups=cats.concat("").map(c=>({c,list:state.services.map((s,k)=>[s,k]).filter(([s])=>(s.cat||"")===c)})).filter(g=>g.c||g.list.length);
+  $("svcList").innerHTML=groups.map(g=>`<div class="svcgroup">${g.c?`<div class="svccat"><input aria-label="Category name" data-catname="${esc(g.c)}" value="${esc(g.c)}"><button type="button" data-addin="${esc(g.c)}">+ Service</button><button type="button" class="danger" data-rmcat="${esc(g.c)}" aria-label="Remove category ${esc(g.c)}">✕</button></div>`:`<div class="svccat"><strong>No category</strong></div>`}
+    ${g.list.map(([s,k])=>row(s,k)).join("")||`<p class="note">No services here yet. Tap "+ Service" or move one here.</p>`}</div>`).join("");
 }
 function renderSpecials(){
   $("spList").innerHTML=state.specials.length?state.specials.map(s=>`<div class="row" style="grid-template-columns:1fr auto"><div class="who"><strong>${esc(s.name)}</strong><span>${esc(specialText(s))}</span></div><span class="pill ${live(s)?"p-paid":"p-booked"}">${s.active?(live(s)?"On":"Ended"):"Off"}</span>
@@ -135,13 +163,18 @@ function renderSpecials(){
 function fillSettings(){
   const s=state.settings;
   $("setType").innerHTML=Object.entries(TYPES).map(([k,t])=>`<option value="${k}">${t.label}</option>`).join("");$("setType").value=s.type||"barber";
-  $("setName").value=s.name;$("setArea").value=s.area;$("setWa").value=s.whatsapp;$("setDep").value=s.deposit;renderHours();
+  $("setName").value=s.name;$("setArea").value=s.area;$("setWa").value=s.whatsapp;$("setDep").value=s.deposit;$("setPayLink").value=s.payLink||"";$("setPayDetails").value=s.payDetails||"";$("setInstant").checked=!!s.instant;$("setChange").value=s.changeHours;$("setStep").value=String(s.slotStep||"len");["Bio:bio","Address:address","Map:mapLink","Email:email","Ig:instagram"].forEach(x=>{const[i,k]=x.split(":");$("set"+i).value=s[k]||""});renderBrand();renderHours();
   $("setLoy").value=s.loyaltyEvery;$("setLoyR").value=s.loyaltyReward;$("setCome").value=s.comeBack;
   $("bookLink").textContent=BOOK_LINK;
 }
 function renderHours(){
   const s=state.settings;
   const opts=v=>{let h="";for(let m=300;m<=1440;m+=30){const x=m/60;h+=`<option value="${x}"${Math.abs(+v-x)<.01?" selected":""}>${m===1440?"Midnight":to12(hm(x))}</option>`}return h};
+  const bo=v=>`<option value="0">No break</option>`+opts(v);
+  $("setBreakFrom").innerHTML=bo(s.breakFrom);$("setBreakTo").innerHTML=bo(s.breakTo);
+  if(!+s.breakFrom)$("setBreakFrom").value="0";if(!+s.breakTo)$("setBreakTo").value="0";
+  const off=(s.daysOff||[]).filter(o=>(o.to||o.from)>=TODAY).sort((a,b)=>a.from.localeCompare(b.from));
+  $("offList").innerHTML=off.length?off.map(o=>`<div class="row" style="grid-template-columns:1fr auto"><div class="who"><strong>${prettyDate(o.from)}${o.to&&o.to!==o.from?" to "+prettyDate(o.to):""}</strong></div><button type="button" class="danger" data-rmoff="${o.from}">Remove</button></div>`).join(""):`<div class="empty">No days off coming up.</div>`;
   $("setHours").innerHTML=[1,2,3,4,5,6,0].map(d=>{const on=s.openDays.includes(d),[o,c]=hoursOn(s,d),day=DAYNAMES[d].slice(0,-1);
     return `<div class="hrow"><label class="check"><input type="checkbox" data-hday="${d}" data-hf="on"${on?" checked":""} aria-label="Open on ${day}">${day.slice(0,3)}</label><select data-hday="${d}" data-hf="o" aria-label="${day} opens at"${on?"":" disabled"}>${opts(o)}</select><span class="note">to</span><select data-hday="${d}" data-hf="c" aria-label="${day} closes at"${on?"":" disabled"}>${opts(c)}</select></div>`}).join("");
 }
@@ -164,8 +197,9 @@ document.addEventListener("click",e=>{
   const id=+btn.dataset.id,a=btn.dataset.a,b=state.items.find(i=>i.id===id);if(!b)return;
   const box=btn.closest(".row").querySelector(".msg");
   if(a==="del"){state.items=state.items.filter(i=>i.id!==id);save();render();toast("Booking removed");return}
-  if(a==="remind"){copyText(bookingReminder(b),box);return}
-  if(a==="payrem"){copyText(paymentReminder(b),box);return}
+  if(a==="remind"){sendWa(phoneOf(b),bookingReminder(b),box);b.reminded=true;save();setTimeout(render,300);return}
+  if(a==="payrem"){sendWa(phoneOf(b),paymentReminder(b),box);return}
+  if(a==="review"){sendWa(phoneOf(b),reviewMsg(b),box);b.reviewAsked=true;save();setTimeout(render,300);return}
   if(a==="dep"){b.deposit=+state.settings.deposit;save();render();toast(`Deposit of ${money(b.deposit)} recorded`);return}
   if(a==="method"){b.method=b.method===btn.dataset.m?null:btn.dataset.m;save();render();toast(b.method?"Paid by "+b.method.toLowerCase():"Payment method cleared");return}
   if(a==="booked")b.method=null;
@@ -231,8 +265,8 @@ $("qList").addEventListener("click",e=>{
 });
 
 // ---------- clients ----------
-$("dueList").addEventListener("click",e=>{const b=e.target.closest("[data-due]");if(!b)return;const c=state.clients.find(x=>x.id===b.dataset.due);if(c)copyText(comeBackMsg(c,clientStats(c)),b.closest(".row").querySelector(".msg"))});
-function shrink(file){return new Promise((res,rej)=>{const r=new FileReader();r.onerror=rej;r.onload=()=>{const img=new Image();img.onerror=rej;img.onload=()=>{const k=Math.min(1,600/Math.max(img.width,img.height));const cv=document.createElement("canvas");cv.width=Math.round(img.width*k);cv.height=Math.round(img.height*k);cv.getContext("2d").drawImage(img,0,0,cv.width,cv.height);res(cv.toDataURL("image/jpeg",0.72))};img.src=r.result};r.readAsDataURL(file)})}
+$("dueList").addEventListener("click",e=>{const b=e.target.closest("[data-due]");if(!b)return;const c=state.clients.find(x=>x.id===b.dataset.due);if(c)sendWa(c.phone,comeBackMsg(c,clientStats(c)),b.closest(".row").querySelector(".msg"))});
+function shrink(file,max=600){return new Promise((res,rej)=>{const r=new FileReader();r.onerror=rej;r.onload=()=>{const img=new Image();img.onerror=rej;img.onload=()=>{const k=Math.min(1,max/Math.max(img.width,img.height));const cv=document.createElement("canvas");cv.width=Math.round(img.width*k);cv.height=Math.round(img.height*k);const g=cv.getContext("2d");g.fillStyle="#ffffff";g.fillRect(0,0,cv.width,cv.height);g.drawImage(img,0,0,cv.width,cv.height);res(cv.toDataURL("image/jpeg",0.72))};img.src=r.result};r.readAsDataURL(file)})}
 $("clientList").addEventListener("click",e=>{const t=e.target.closest("[data-open],[data-rmphoto],[data-bookagain],[data-invoice]");if(!t)return;
   if(t.dataset.invoice){showTab("money");$("invClient").value=t.dataset.invoice;$("invPeriod").value="month";renderInvoice();$("invForm").scrollIntoView({behavior:"smooth",block:"start"});return}
   if(t.dataset.open){openClient=openClient===t.dataset.open?null:t.dataset.open;renderClients();return}
@@ -252,16 +286,25 @@ $("mNext").addEventListener("click",()=>{if(monthOffset<0){monthOffset++;renderM
 $("mCopy").addEventListener("click",()=>{const t=$("mText").textContent;try{navigator.clipboard.writeText(t).then(()=>toast("Summary copied"),()=>toast("Select the summary and copy it"))}catch(e){toast("Select the summary and copy it")}});
 
 // ---------- setup ----------
-const NUMERIC=["deposit","comeBack","loyaltyEvery","open","close"];
+const NUMERIC=["deposit","comeBack","loyaltyEvery","open","close","changeHours","breakFrom","breakTo"];
 $("pane-setup").addEventListener("change",e=>{
   const t=e.target;
   if(t.dataset.hday!==undefined){const d=+t.dataset.hday,s=state.settings;
     if(t.dataset.hf==="on")s.openDays=t.checked?[...new Set(s.openDays.concat(d))].sort((a,b)=>a-b):s.openDays.filter(x=>x!==d);
     else{const cur=hoursOn(s,d);cur[t.dataset.hf==="o"?0:1]=+t.value;if(cur[1]<=cur[0]){toast("Closing time has to be after opening time");renderHours();return}s.dayHours={...(s.dayHours||{}),[d]:cur}}
     save();renderHours();toast("Saved");return}
-  if(t.dataset.set){const k=t.dataset.set;state.settings[k]=NUMERIC.includes(k)?Math.max(0,+t.value||0):t.value.trim();save();render();toast("Saved");return}
+  if(t.dataset.set){const k=t.dataset.set;
+    if((k==="payLink"||k==="mapLink")&&t.value.trim()&&!safeUrl(t.value)){toast("Paste the full link, starting with https://");return}
+    if(k==="email"&&t.value.trim()&&!t.checkValidity()){toast("That email doesn't look right");return}
+    if(k==="instagram")t.value=igHandle(t.value)?"@"+igHandle(t.value):"";
+    if((k==="breakFrom"||k==="breakTo")&&+$("setBreakFrom").value&&+$("setBreakTo").value&&+$("setBreakTo").value<=+$("setBreakFrom").value){t.value=String(state.settings[k]||0);toast("The break has to end after it starts");return}
+    state.settings[k]=t.type==="checkbox"?t.checked:NUMERIC.includes(k)?Math.max(0,+t.value||0):t.value.trim();save();render();toast("Saved");return}
+  if(t.dataset.catname!==undefined){const old=t.dataset.catname,nv=t.value.trim();
+    if(!nv||(nv!==old&&catsOf().includes(nv))){t.value=old;toast(nv?"You already have a category with that name":"Give the category a name");return}
+    state.settings.cats=catsOf().map(c=>c===old?nv:c);state.services.forEach(s=>{if(s.cat===old)s.cat=nv});save();renderServices();render();toast("Category renamed");return}
   if(t.dataset.svc!==undefined){const s=state.services[+t.dataset.svc],f=t.dataset.f;if(!s)return;
     if(f==="name"){const old=s.name,nv=t.value.trim();if(!nv){t.value=old;return}s.name=nv;state.specials.forEach(sp=>{if(sp.service===old)sp.service=nv;if(sp.includes)sp.includes=sp.includes.map(n=>n===old?nv:n)})}
+    else if(f==="cat")s.cat=t.value;
     else s[f]=Math.max(0,+t.value||0);
     save();render();toast("Saved")}
 });
@@ -271,7 +314,36 @@ $("pane-setup").addEventListener("click",e=>{
     if(s.dataset.sp==="del"){const n=state.specials[k].name;state.specials.splice(k,1);toast(`${n} deleted`)}else{state.specials[k].active=!state.specials[k].active;toast(state.specials[k].active?"Special turned on":"Special turned off")}
     save();render()}
 });
-$("addSvc").addEventListener("click",()=>{state.services.push({name:"New service "+(state.services.length+1),price:0,mins:30});save();renderServices();render();const ins=$("svcList").querySelectorAll("input[data-f=name]");ins[ins.length-1].select()});
+// ---------- booking page look ----------
+function renderBrand(){
+  const s=state.settings,c=validColor(s.color);
+  $("logoPrev").innerHTML=s.logo?`<img src="${s.logo}" alt="Your logo">`:`<span>${esc(initials(s.name||"?"))}</span>`;
+  $("logoPrev").style.background=c||"";$("logoPrev").style.color=c?inkFor(c):"";$("logoRm").hidden=!s.logo;
+  $("swatches").innerHTML=BRAND_COLORS.map(x=>`<button type="button" class="swatch" data-color="${x}" style="background:${x}" aria-label="Colour ${x}" aria-pressed="${c===x}"></button>`).join("")+`<label class="swatch custom" aria-label="Pick any colour" title="Pick any colour"${c&&!BRAND_COLORS.includes(c)?` style="background:${c}" data-on="1"`:""}><input type="color" id="colorPick" value="${c||"#f0b400"}"></label>`;
+}
+$("swatches").addEventListener("click",e=>{const b=e.target.closest("[data-color]");if(!b)return;state.settings.color=b.dataset.color;save();renderBrand();toast("Colour saved")});
+$("swatches").addEventListener("change",e=>{if(e.target.id!=="colorPick")return;state.settings.color=validColor(e.target.value);save();renderBrand();toast("Colour saved")});
+$("logoAdd").addEventListener("change",async e=>{const f=e.target.files[0];e.target.value="";if(!f)return;
+  try{state.settings.logo=await shrink(f,320);save();renderBrand();toast("Logo saved")}catch(err){toast("Couldn't read that picture. Try a JPG or PNG.")}});
+$("logoRm").addEventListener("click",()=>{state.settings.logo="";save();renderBrand();toast("Logo removed")});
+$("offAdd").addEventListener("click",()=>{
+  let from=$("offFrom").value,to=$("offTo").value||from;if(!from){toast("Pick the first day off");return}
+  if(to<from)[from,to]=[to,from];
+  const S=state.settings;S.daysOff=(S.daysOff||[]).filter(o=>(o.to||o.from)>=TODAY).concat({from,to});
+  $("offFrom").value=$("offTo").value="";save();renderHours();
+  const clash=state.items.filter(i=>i.status==="booked"&&i.date>=from&&i.date<=to).length;
+  toast(clash?`Days off added. You already have ${clash} booking${clash>1?"s":""} then, so let them know.`:"Days off added. Clients can't book those dates.");
+});
+$("offList").addEventListener("click",e=>{const b=e.target.closest("[data-rmoff]");if(!b)return;state.settings.daysOff=(state.settings.daysOff||[]).filter(o=>o.from!==b.dataset.rmoff);save();renderHours();toast("Days off removed")});
+function addService(cat){const sv={name:"New service "+(state.services.length+1),price:0,mins:30};if(cat)sv.cat=cat;state.services.push(sv);save();renderServices();render();const k=state.services.length-1,inp=$("svcList").querySelector(`input[data-svc="${k}"][data-f=name]`);if(inp)inp.select()}
+$("addSvc").addEventListener("click",()=>addService(""));
+$("addCat").addEventListener("click",()=>{const n=$("newCat").value.trim();if(!n){toast("Type a name for the category");return}if(catsOf().includes(n)){toast("You already have that category");return}
+  state.settings.cats=catsOf().concat(n);$("newCat").value="";save();renderServices();render();toast(`${n} added. Pick it next to each service, or tap "+ Service".`)});
+$("newCat").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();$("addCat").click()}});
+$("svcList").addEventListener("click",e=>{
+  const a=e.target.closest("[data-addin]");if(a){addService(a.dataset.addin);return}
+  const r=e.target.closest("[data-rmcat]");if(r){const c=r.dataset.rmcat;state.settings.cats=catsOf().filter(x=>x!==c);state.services.forEach(s=>{if(s.cat===c)delete s.cat});save();renderServices();render();toast(`${c} removed. Its services are kept.`)}
+});
 function spKindUI(){const k=$("spKind").value;$("spValueLabel").textContent=k==="percent"?"Percent off":k==="amount"?"Dollars off":"Bundle price ($)";$("spServiceWrap").hidden=k==="bundle";$("spInclWrap").hidden=k!=="bundle"}
 $("spKind").addEventListener("change",spKindUI);
 $("spForm").addEventListener("submit",e=>{

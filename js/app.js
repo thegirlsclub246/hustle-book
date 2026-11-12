@@ -15,8 +15,8 @@ function save(){
 async function flush(){
   if(saving){saveTimer=setTimeout(flush,500);return}
   saving=true;dirty=false;
-  const {settings,services,specials,items,clients,queue}=state;
-  const {error}=await sb.from("businesses").update({profile:{settings,services,specials},data:{items,clients,queue},updated_at:new Date().toISOString()}).eq("id",business.id);
+  const {settings,services,specials,gallery,items,clients,queue}=state;
+  const {error}=await sb.from("businesses").update({profile:{settings,services,specials,gallery},data:{items,clients,queue},updated_at:new Date().toISOString()}).eq("id",business.id);
   saving=false;
   if(error){dirty=true;setSync("Not saved yet. Retrying…","err");saveTimer=setTimeout(flush,5000);return}
   if(!dirty)setSync("All changes saved","ok");
@@ -67,20 +67,20 @@ async function checkSubscription(session){
 }
 function start(row){
   business=row;const p=row.profile||{},d=row.data||{};
-  state={settings:{...DEFAULT_SETTINGS,...(p.settings||{})},services:p.services||[],specials:p.specials||[],items:d.items||[],clients:d.clients||[],queue:d.queue||[]};
+  state={settings:{...DEFAULT_SETTINGS,...(p.settings||{})},services:p.services||[],specials:p.specials||[],gallery:p.gallery||[],items:d.items||[],clients:d.clients||[],queue:d.queue||[]};
   uid=Math.max(0,...state.items.map(i=>+i.id||0))+1;
   setLink(row.slug);
   $("onboard").hidden=true;$("ownerView").hidden=false;
   $("today").textContent=now.toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long"});
   $("invDay").value=TODAY;$("invFrom").value=iso(new Date(now.getFullYear(),now.getMonth(),1));$("invTo").value=TODAY;
-  fillSettings();renderServices();render();resetForm();
+  fillSettings();renderServices();render();resetForm();renderGallery();
   let tab="today";try{tab=localStorage.getItem(TABKEY)||"today"}catch(e){}
   showTab(["today","clients","money","setup"].includes(tab)?tab:"today");spKindUI();
   setSync("All changes saved","ok");
   setTimeout(()=>HBGuide.firstRun(),700);
   offerImport();
-  loadRequests();setInterval(loadRequests,60000);
-  document.addEventListener("visibilitychange",()=>{if(!document.hidden)loadRequests()});
+  loadRequests();setInterval(loadRequests,60000);loadReviews();
+  document.addEventListener("visibilitychange",()=>{if(!document.hidden){loadRequests();loadReviews()}});
 }
 function setLink(slug){
   BOOK_LINK=new URL("book.html?b="+encodeURIComponent(slug),location.href).href;
@@ -151,14 +151,27 @@ $("saveSlug").addEventListener("click",async()=>{
 });
 
 // ---------- booking requests from customers ----------
+// New requests wait for Accept, unless instant booking is on. Requests the client cancelled or moved
+// take the booking out of the book and show a notice until the owner taps Done.
 let requests=[];
 async function loadRequests(){
   if(!business)return;
-  const {data,error}=await sb.from("booking_requests").select("*").eq("business_id",business.id).eq("status","new").order("date").order("time");
+  const {data,error}=await sb.from("booking_requests").select("*").eq("business_id",business.id).in("status",["new","cancelled"]).order("date").order("time");
   if(error)return;
-  const handled=requests.filter(r=>r._done);
-  requests=handled.concat(data.filter(r=>!handled.some(h=>h.id===r.id)));
+  const handled=requests.filter(r=>r._done),fresh=data.filter(r=>!handled.some(h=>h.id===r.id));
+  requests=handled.concat(fresh.filter(r=>r.status==="new"));
+  // Cancellations first, so a moved booking frees its old time before the new one is checked for clashes.
+  for(const r of fresh.filter(r=>r.status==="cancelled"))await handleCancel(r,data);
+  if(state.settings.instant)for(const r of requests.filter(r=>!r._done&&!clashWith(r)))await acceptRequest(r,true);
   renderRequests();
+}
+async function handleCancel(r,all){
+  const {error}=await sb.from("booking_requests").update({status:"cancel_seen"}).eq("id",r.id);
+  if(error)return;
+  const it=state.items.find(i=>i.req===r.id&&i.status==="booked");
+  if(it){if(+it.deposit)it.status="cancelled";else state.items=state.items.filter(i=>i!==it);save();render()}
+  const to=all.find(x=>x.moved_from===r.id);
+  r._done=to?"moved":"cancelled";r._to=to||null;requests.push(r);
 }
 function clashWith(r){
   const start=toMin(r.time),end=start+minsOf(r.service);
@@ -166,20 +179,40 @@ function clashWith(r){
 }
 const toMin=t=>{const [h,m]=String(t).split(":").map(Number);return h*60+(m||0)};
 function confirmMsg(r){
-  let t=`Hi ${first(r.name)}, you're booked with ${state.settings.name} on ${prettyDate(r.date)} at ${to12(r.time)} for a ${r.service.toLowerCase()} (${money(r.price)}).`;
-  const dep=+state.settings.deposit;if(dep)t+=` To hold your slot, please send the ${money(dep)} deposit by bank transfer.`;
-  return t+" See you then!";
+  const S=state.settings;
+  let t=`Hi ${first(r.name)}, you're booked with ${S.name} on ${prettyDate(r.date)} at ${to12(r.time)} for a ${r.service.toLowerCase()} (${money(r.price)}).`;
+  const dep=+S.deposit,it=state.items.find(i=>i.req===r.id);
+  if(dep&&!(it&&+it.deposit))t+=` To hold your slot, please send the ${money(dep)} deposit ${depositHow(S)}.`;
+  return t+` Need to change or cancel? Use this link: ${manageLink(r.id)} See you then!`;
 }
 function declineMsg(r){return `Hi ${first(r.name)}, thanks for booking with ${state.settings.name}. Sorry, I can't do ${prettyDate(r.date)} at ${to12(r.time)}. Can you pick another time here? ${BOOK_LINK}`}
+async function acceptRequest(r,auto){
+  const {error}=await sb.from("booking_requests").update({status:"accepted"}).eq("id",r.id);
+  if(error)return false;
+  const base=priceOf(r.service)||+r.price||0,price=r.price!=null?+r.price:base;
+  upsertClient(r.name,r.phone||"");
+  // A moved booking keeps the deposit that was paid on the old one.
+  let deposit=0;const old=r.moved_from&&state.items.find(i=>i.req===r.moved_from);
+  if(old){deposit=+old.deposit||0;state.items=state.items.filter(i=>i!==old)}
+  state.items.push({id:uid++,req:r.id,name:r.name,phone:r.phone||"",service:r.service,base,price,discount:Math.max(0,base-price),special:r.special||"",reward:false,deposit,date:r.date,time:r.time,status:"booked",method:null});
+  save();render();r._done="accepted";r._auto=!!auto;
+  toast(auto?`${r.name} booked ${prettyDate(r.date)} at ${to12(r.time)}`:`${r.name} added to your book`);
+  return true;
+}
 function renderRequests(){
   const fresh=requests.filter(r=>!r._done).length;
   $("reqSection").hidden=!requests.length;
   $("reqCount").textContent=fresh?`${fresh} waiting`:"";
-  $("reqBadge").textContent=fresh;$("reqBadge").hidden=!fresh;
+  $("reqBadge").textContent=requests.length;$("reqBadge").hidden=!requests.length;
+  $("reqNote").textContent=state.settings.instant?"Clients booked these from your link. They're already in your book. Send each one the confirmation on WhatsApp.":"Customers booked these from your link. Accept to add them to your book, then send the confirmation on WhatsApp.";
   $("reqList").innerHTML=requests.map(r=>{
-    if(r._done){const text=r._done==="accepted"?confirmMsg(r):declineMsg(r);const wa=waNumber(r.phone);
-      return `<div class="row" style="grid-template-columns:1fr"><div class="who"><strong>${r._done==="accepted"?"Added":"Declined"}: ${esc(r.name)}</strong><span>${esc(r.service)} · ${prettyDate(r.date)} at ${to12(r.time)}</span></div>
-      <div class="actions">${wa?`<a class="btnlink primary" target="_blank" rel="noopener" href="https://wa.me/${wa}?text=${encodeURIComponent(text)}">Send ${r._done==="accepted"?"confirmation":"message"} on WhatsApp</a>`:""}<button data-req="copy" data-id="${r.id}">Copy message</button><button data-req="dismiss" data-id="${r.id}">Done</button></div><div class="msg" hidden></div></div>`}
+    if(r._done==="moved"||r._done==="cancelled"){
+      const head=r._done==="moved"?`Moved: ${esc(r.name)}`:`Cancelled: ${esc(r.name)}`;
+      const sub=`${esc(r.service)} · was ${prettyDate(r.date)} at ${to12(r.time)}`+(r._to?` · now ${prettyDate(r._to.date)} at ${to12(r._to.time)}`:"");
+      return `<div class="row" style="grid-template-columns:1fr"><div class="who"><strong>${head}</strong><span>${sub}</span></div><div class="actions"><button data-req="dismiss" data-id="${r.id}">Done</button></div></div>`}
+    if(r._done){const text=r._done==="accepted"?confirmMsg(r):declineMsg(r),url=waLink(r.phone,text);
+      return `<div class="row" style="grid-template-columns:1fr"><div class="who"><strong>${r._done==="accepted"?(r._auto?"Booked":"Added"):"Declined"}: ${esc(r.name)}</strong><span>${esc(r.service)} · ${prettyDate(r.date)} at ${to12(r.time)}</span></div>
+      <div class="actions">${url?`<a class="btnlink primary" target="_blank" rel="noopener" href="${esc(url)}">Send ${r._done==="accepted"?"confirmation":"message"} on WhatsApp</a>`:""}<button data-req="copy" data-id="${r.id}">Copy message</button><button data-req="dismiss" data-id="${r.id}">Done</button></div><div class="msg" hidden></div></div>`}
     const c=clashWith(r);
     return `<div class="row"><div class="time">${prettyDate(r.date).split(" ").slice(0,2).join(" ")}<br>${to12(r.time)}</div><div class="who"><strong>${esc(r.name)}</strong><span>${esc(r.service)}${r.phone?" · "+esc(r.phone):""}</span>${r.note?`<em class="cnote">${esc(r.note)}</em>`:""}</div>
     <div class="right"><span class="price">${money(r.price)}</span><span class="pill p-owed">New</span></div>
@@ -193,16 +226,49 @@ $("reqList").addEventListener("click",async e=>{
   if(act==="dismiss"){requests=requests.filter(x=>x!==r);renderRequests();return}
   if(act==="copy"){copyText(r._done==="accepted"?confirmMsg(r):declineMsg(r),b.closest(".row").querySelector(".msg"));return}
   b.disabled=true;
-  const status=act==="accept"?"accepted":"declined";
-  const {error}=await sb.from("booking_requests").update({status}).eq("id",r.id);
+  if(act==="accept"){if(!(await acceptRequest(r,false))){b.disabled=false;toast("Couldn't update that request. Check your internet and try again.")}renderRequests();return}
+  const {error}=await sb.from("booking_requests").update({status:"declined"}).eq("id",r.id);
   if(error){b.disabled=false;toast("Couldn't update that request. Check your internet and try again.");return}
-  if(status==="accepted"){
-    const base=priceOf(r.service)||+r.price||0,price=r.price!=null?+r.price:base;
-    upsertClient(r.name,r.phone||"");
-    state.items.push({id:uid++,name:r.name,phone:r.phone||"",service:r.service,base,price,discount:Math.max(0,base-price),special:r.special||"",reward:false,deposit:0,date:r.date,time:r.time,status:"booked",method:null});
-    save();render();toast(`${r.name} added to your book`);
-  }else toast("Request declined");
-  r._done=status;renderRequests();
+  toast("Request declined");r._done="declined";renderRequests();
+});
+
+// ---------- photos for the booking page ----------
+const MAX_PHOTOS=6;
+function renderGallery(){
+  const g=state.gallery;
+  $("galList").innerHTML=g.length?g.map((src,k)=>`<figure><img src="${src}" alt="Photo ${k+1} of your work"><button type="button" class="danger" data-rmgal="${k}" aria-label="Remove photo ${k+1}">✕</button></figure>`).join(""):`<p class="note">No photos yet.</p>`;
+  $("galAdd").disabled=g.length>=MAX_PHOTOS;
+}
+$("galAdd").addEventListener("change",async e=>{
+  const files=[...e.target.files].slice(0,MAX_PHOTOS-state.gallery.length);e.target.value="";
+  for(const f of files){try{state.gallery.push(await shrink(f))}catch(err){toast("Couldn't read that photo. Try a JPG or PNG.")}}
+  if(files.length){save();renderGallery();toast(files.length>1?"Photos added to your booking page":"Photo added to your booking page")}
+  else toast(`You can have up to ${MAX_PHOTOS} photos. Remove one first.`);
+});
+$("galList").addEventListener("click",e=>{const b=e.target.closest("[data-rmgal]");if(!b)return;state.gallery.splice(+b.dataset.rmgal,1);save();renderGallery();toast("Photo removed")});
+
+// ---------- reviews ----------
+let reviews=[];
+async function loadReviews(){
+  if(!business)return;
+  const {data,error}=await sb.from("reviews").select("*").eq("business_id",business.id).order("created_at",{ascending:false}).limit(100);
+  if(error)return;reviews=data;renderReviews();
+}
+function renderReviews(){
+  const fresh=reviews.filter(r=>r.status==="new").length,shown=reviews.filter(r=>r.status==="shown");
+  $("revBadge").textContent=fresh;$("revBadge").hidden=!fresh;
+  $("revCount").textContent=reviews.length?`${shown.length} showing`+(fresh?` · ${fresh} new`:""):"";
+  $("revList").innerHTML=reviews.length?reviews.map(r=>`<div class="row" style="grid-template-columns:1fr auto"><div class="who"><strong>${esc(r.name)} <span class="starline" aria-label="${r.stars} out of 5 stars">${stars(r.stars)}</span></strong>${r.body?`<span>${esc(r.body)}</span>`:""}</div>
+    <span class="pill ${r.status==="shown"?"p-paid":r.status==="new"?"p-owed":"p-booked"}">${r.status==="shown"?"Showing":r.status==="new"?"New":"Hidden"}</span>
+    <div class="actions">${r.status==="shown"?`<button data-rev="hidden" data-id="${r.id}">Hide</button>`:`<button class="primary" data-rev="shown" data-id="${r.id}">Show on my page</button>`}${r.status==="new"?`<button data-rev="hidden" data-id="${r.id}">Hide</button>`:""}<button class="danger" data-rev="del" data-id="${r.id}">Delete</button></div></div>`).join(""):`<div class="empty">No reviews yet.</div>`;
+}
+$("revList").addEventListener("click",async e=>{
+  const b=e.target.closest("[data-rev]");if(!b)return;const r=reviews.find(x=>x.id===b.dataset.id);if(!r)return;
+  b.disabled=true;const st=b.dataset.rev;
+  const {error}=st==="del"?await sb.from("reviews").delete().eq("id",r.id):await sb.from("reviews").update({status:st}).eq("id",r.id);
+  if(error){b.disabled=false;toast("Couldn't save that. Check your internet and try again.");return}
+  if(st==="del")reviews=reviews.filter(x=>x!==r);else r.status=st;
+  renderReviews();toast(st==="shown"?"Review is on your booking page":st==="hidden"?"Review hidden":"Review deleted");
 });
 
 boot();

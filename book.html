@@ -7,28 +7,51 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Inter:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="css/app.css">
 <link rel="icon" href="icons/favicon-32.png" sizes="32x32">
+<meta name="theme-color" content="#0e6e62">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 </head>
 <body>
 <div class="wrap" id="bookMsgView"><p class="note">Loading…</p></div>
 <div class="wrap" id="bookView" hidden>
-  <div class="biz"><span class="eyebrow">Book online</span><h1 id="bizName"></h1><span class="note" id="bizArea"></span></div>
+  <div class="bizhead"><span class="bizlogo" id="bizLogo" aria-hidden="true"></span>
+    <div class="biz"><span class="eyebrow">Book online</span><h1 id="bizName"></h1><span class="note" id="bizArea"></span><a class="note starline" id="bizStars" href="#bkReviews" hidden></a></div></div>
+  <p class="bizbio" id="bizBio" hidden></p>
+  <div class="contact" id="bizContact" hidden></div>
+  <div class="showcase" id="bkGallery" hidden></div>
+  <section class="summary" id="bkManage" hidden></section>
   <div class="specials" id="bkSpecials" hidden></div>
-  <section><h2>1. Pick a <span data-t="servicelc">service</span></h2><div class="choices" id="bkServices"></div></section>
-  <section><h2>2. Pick a day</h2><div class="cal" id="bkCal"><div class="calhead"><button type="button" id="calPrev" aria-label="Previous month">‹</button><strong id="calLabel"></strong><button type="button" id="calNext" aria-label="Next month">›</button></div><div class="calgrid" id="calGrid"></div></div><p class="note" id="bkDayNote"></p></section>
-  <section><h2>3. Pick a time</h2><div class="chips" id="bkTimes"></div><p class="note" id="bkTimeNote"></p></section>
+  <section id="bkSvcSection"><h2>1. Pick a <span data-t="servicelc">service</span></h2><div class="chips catchips" id="bkCats" hidden></div><div id="bkServices"></div></section>
+  <section id="bkDaySection"><h2>2. Pick a day</h2><div class="cal" id="bkCal"><div class="calhead"><button type="button" id="calPrev" aria-label="Previous month">‹</button><strong id="calLabel"></strong><button type="button" id="calNext" aria-label="Next month">›</button></div><div class="calgrid" id="calGrid"></div></div><p class="note" id="bkDayNote"></p></section>
+  <section id="bkTimeSection"><h2>3. Pick a time</h2><div class="chips" id="bkTimes"></div><p class="note" id="bkTimeNote"></p></section>
   <section class="summary" id="bkForm">
-    <h2>4. Your details</h2>
+    <h2 id="bkFormTitle">4. Your details</h2>
+    <div id="bkDetails" style="display:contents">
     <label>Your name<input id="bkName" required maxlength="80" placeholder="e.g. Jamal" autocomplete="name"></label>
     <label>WhatsApp number<input id="bkPhone" required maxlength="30" inputmode="tel" placeholder="246 555 0000" autocomplete="tel"></label>
     <label>Anything they should know? (optional)<textarea id="bkNote" rows="2" maxlength="500" placeholder="e.g. Coming with my son"></textarea></label>
+    </div>
     <div class="msg" id="bkMsg">Pick a service, day and time.</div>
     <p class="err" id="bkErr" hidden></p>
     <button type="button" class="wa" id="bkSend" disabled>Request this booking</button>
     <p class="note" id="bkFoot"></p>
   </section>
   <div class="ok-box" id="bkDone" hidden></div>
+  <section id="bkReviews" hidden><h2>What clients say</h2><div class="revs" id="revList"></div><button type="button" id="revMore" hidden>Show more reviews</button></section>
   <p class="note">Powered by Hustle Book.</p>
+</div>
+<div class="wrap" id="reviewView" hidden>
+  <div class="bizhead"><span class="bizlogo" id="revLogo" aria-hidden="true"></span><div class="biz"><span class="eyebrow">Leave a review</span><h1 id="revBiz"></h1></div></div>
+  <section class="summary" id="revForm">
+    <h2>How was your visit?</h2>
+    <div class="starpick" id="revStars" role="group" aria-label="Your rating">
+      <button type="button" data-star="1" aria-label="1 star" aria-pressed="false">★</button><button type="button" data-star="2" aria-label="2 stars" aria-pressed="false">★</button><button type="button" data-star="3" aria-label="3 stars" aria-pressed="false">★</button><button type="button" data-star="4" aria-label="4 stars" aria-pressed="false">★</button><button type="button" data-star="5" aria-label="5 stars" aria-pressed="false">★</button>
+    </div>
+    <label>Your first name<input id="revName" maxlength="60" autocomplete="given-name" placeholder="e.g. Jamal"></label>
+    <label>Tell others about it (optional)<textarea id="revBody" rows="3" maxlength="600" placeholder="e.g. Clean fade, on time, great vibes"></textarea></label>
+    <p class="err" id="revErr" hidden></p>
+    <button type="button" class="wa" id="revSend">Send my review</button>
+  </section>
+  <div class="ok-box" id="revDone" hidden><strong>Thank you!</strong><span>Your review has been sent.</span><a class="btnlink" id="revBook" href="#">Book your next visit</a></div>
 </div>
 <div class="toast" id="toast" hidden></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.50.0/dist/umd/supabase.js"></script>

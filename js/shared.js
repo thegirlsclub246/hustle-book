@@ -21,14 +21,47 @@ const newId=p=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 // Opening hours for a day of the week (0 = Sunday). dayHours overrides the default open/close for that day.
 // Hours are decimals, so 16.5 means 4:30pm.
 function hoursOn(S,dow){const h=S.dayHours&&S.dayHours[dow];return h&&h.length===2?[+h[0],+h[1]]:[+S.open,+S.close]}
+// Days the owner has blocked off (holidays, vacation), as {from,to} dates.
+const offOn=(S,ds)=>(S.daysOff||[]).find(o=>o.from<=ds&&ds<=(o.to||o.from));
+// Start times a client can pick on a day, in minutes from midnight.
+// Times are spaced by the service length (or a fixed gap the owner picks), and also start right after
+// each booking ends, so the day fills up without awkward gaps. Nothing runs into the break or past closing.
+function startTimes(S,dow,len,busy){
+  const [o,c]=hoursOn(S,dow),open=o*60,close=c*60,L=Math.min(len,close-open);
+  const step=S.slotStep&&S.slotStep!=="len"?+S.slotStep:Math.max(15,len);
+  const bf=+S.breakFrom*60,bt=+S.breakTo*60,hasBreak=bt>bf&&bf>0;
+  // Count up from opening time, and again from the end of the break.
+  const c2=new Set();for(let m=open;m+L<=close&&!(hasBreak&&m>=bt);m+=step)c2.add(m);
+  if(hasBreak)for(let m=bt;m+L<=close;m+=step)c2.add(m);
+  busy.forEach(b=>c2.add(b.start+b.mins));
+  return [...c2].filter(m=>m>=open&&m+L<=close&&!(hasBreak&&m<bt&&bf<m+L)).sort((a,b)=>a-b);
+}
 const hm=x=>pad(Math.floor(x))+":"+pad(Math.round((x%1)*60));
 
-const DEFAULT_SETTINGS={type:"barber",name:"",area:"",whatsapp:"",deposit:0,comeBack:21,loyaltyEvery:10,loyaltyReward:"free",open:9,close:19,openDays:[1,2,3,4,5,6]};
+const DEFAULT_SETTINGS={type:"barber",name:"",area:"",whatsapp:"",deposit:0,payLink:"",payDetails:"",instant:false,changeHours:24,slotStep:"len",breakFrom:0,breakTo:0,daysOff:[],color:"",logo:"",bio:"",address:"",mapLink:"",email:"",instagram:"",comeBack:21,loyaltyEvery:10,loyaltyReward:"free",open:9,close:19,openDays:[1,2,3,4,5,6]};
+
+// ---------- deposits and WhatsApp ----------
+// How to pay the deposit, for messages: "here: https://paypal.me/x" or "by bank transfer to RBC 123…".
+const safeUrl=u=>/^https:\/\/[^\s"'<>]+$/i.test(String(u||"").trim())?String(u).trim():"";
+function depositHow(S){const l=safeUrl(S.payLink);if(l)return "here: "+l;return S.payDetails?"by bank transfer to "+S.payDetails:"by bank transfer"}
+// A wa.me link that opens WhatsApp with the message typed in. Empty if the number is missing or too short.
+function waLink(phone,text){const n=waNumber(phone);return n.length>=10?"https://wa.me/"+n+"?text="+encodeURIComponent(text):""}
+// ---------- business branding ----------
+const BRAND_COLORS=["#f0b400","#e85d75","#c2185b","#8e44ad","#3f51b5","#0e7c86","#1e7a46","#d35400","#111827"];
+const validColor=c=>/^#[0-9a-f]{6}$/i.test(String(c||""))?c:"";
+// Black or white text, whichever reads better on the colour.
+function inkFor(hex){const n=parseInt(hex.slice(1),16),ch=v=>{v/=255;return v<=.03928?v/12.92:((v+.055)/1.055)**2.4},L=.2126*ch(n>>16&255)+.7152*ch(n>>8&255)+.0722*ch(n&255);return L>.4?"#111111":"#ffffff"}
+// Paints the booking page in the business's colour (buttons, picks, links).
+function applyBrand(S){const c=validColor(S.color);if(!c)return;const r=document.documentElement.style;r.setProperty("--gold",c);r.setProperty("--gold-ink",inkFor(c));r.setProperty("--brand",c);r.setProperty("--brand-ink",inkFor(c));document.querySelector('meta[name="theme-color"]')?.setAttribute("content",c)}
+const igHandle=h=>String(h||"").trim().replace(/^https?:\/\/(www\.)?instagram\.com\//i,"").replace(/^@/,"").replace(/[\/?#].*$/,"");
+const stars=n=>"★★★★★".slice(0,n)+"☆☆☆☆☆".slice(0,5-n);
 
 // ---------- services, specials, loyalty ----------
 const live=s=>s.active&&(!s.ends||s.ends>=TODAY);
 const svc=n=>state.services.find(s=>s.name===n);
 function bundles(){return state.specials.filter(s=>s.kind==="bundle"&&live(s)).map(s=>({name:s.name,price:+s.price,mins:sum(s.includes,n=>(svc(n)||{mins:30}).mins),bundle:true,includes:s.includes,full:sum(s.includes,n=>(svc(n)||{price:0}).price)}))}
+// Categories, e.g. "Nails" holding Gel manicure and Acrylic full set. Kept in the order the owner made them.
+const catsOf=()=>[...new Set((state.settings.cats||[]).concat(state.services.map(s=>s.cat||"").filter(Boolean)))];
 const allServices=()=>state.services.concat(bundles());
 const priceOf=n=>{const s=allServices().find(x=>x.name===n);return s?+s.price:0};
 const minsOf=n=>{const s=allServices().find(x=>x.name===n);return s?+s.mins||30:30};
