@@ -238,9 +238,26 @@ sel.addEventListener("change",()=>{fillSpecials();recalc()});
 $("fDate").addEventListener("change",()=>{fillSpecials();recalc()});
 $("fSpecial").addEventListener("change",recalc);
 $("fReward").addEventListener("change",recalc);
-function resetForm(){$("addForm").reset();$("fDate").value=TODAY;$("fHint").hidden=true;$("fRewardWrap").hidden=true;fillSpecials();recalc()}
+function resetForm(){$("addForm").reset();$("fDate").value=TODAY;$("fHint").hidden=true;$("fRewardWrap").hidden=true;fillSpecials();recalc();checkClash()}
+// Warns before the owner double books: a time that's already taken (or waiting to be accepted),
+// a day off, or a closed day. They can still book it anyway (two chairs, a favour for a regular).
+function addClash(){
+  const d=$("fDate").value,t=$("fTime").value,S=state.settings;if(!d||!t)return "";
+  if(offOn(S,d))return "You've marked "+prettyDate(d)+" as a day off.";
+  if(!S.openDays.includes(dateObj(d).getDay()))return "You're closed on "+DAYNAMES[dateObj(d).getDay()]+".";
+  const r={date:d,time:t,service:sel.value},c=clashWith(r);
+  if(c)return `That clashes with ${c.name} at ${to12(c.time)}.`;
+  const s=toMin(t),e=s+minsOf(sel.value);
+  const q=(typeof requests!=="undefined"?requests:[]).find(x=>!x._done&&x.date===d&&toMin(x.time)<e&&s<toMin(x.time)+minsOf(x.service));
+  return q?`${q.name} has asked for ${to12(q.time)} that day. Accept or decline it first.`:"";
+}
+function checkClash(){const m=addClash();$("fClash").textContent=m;$("fClash").hidden=!m;$("fAdd").textContent=m?"Book it anyway":"Add booking";return m}
+["fDate","fTime","fService"].forEach(id=>$(id).addEventListener("change",checkClash));
+$("fTime").addEventListener("input",checkClash);
 $("addForm").addEventListener("submit",e=>{
   e.preventDefault();
+  // First tap on a clash shows the warning; tapping "Book it anyway" books it.
+  {const m=addClash();if(m&&($("fClash").hidden||$("fClash").textContent!==m)){checkClash();toast(m);return}}
   const name=fName.value.trim(),phone=$("fPhone").value.trim(),base=priceOf(sel.value),p=+price.value||0;
   const reward=!$("fRewardWrap").hidden&&$("fReward").checked,sp=state.specials.find(s=>s.id===$("fSpecial").value);
   upsertClient(name,phone);

@@ -323,3 +323,143 @@ language sql stable security definer set search_path = public as $$
 $$;
 revoke all on function public.public_reviews(text) from public;
 grant execute on function public.public_reviews(text) to anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- No double bookings. The database refuses a booking for a time that's already
+-- taken (including the length of each service), a time that's already gone, or a
+-- day the business is closed or the owner has marked as a day off. Bookings for
+-- the same business are checked one at a time, so two clients tapping the same
+-- time at the same moment can't both get it.
+-- ---------------------------------------------------------------------------
+
+-- A JSON list, or an empty list if it's missing or not a list.
+create or replace function public.hb_arr(j jsonb) returns jsonb
+language sql immutable as $$
+  select case when jsonb_typeof(j) = 'array' then j else '[]'::jsonb end;
+$$;
+
+-- "14:30" -> 870 (minutes from midnight). Null if it isn't a time.
+create or replace function public.hb_minutes(t text) returns int
+language sql immutable as $$
+  select case when t ~ '^[0-9]{1,2}:[0-5][0-9]$' then split_part(t, ':', 1)::int * 60 + split_part(t, ':', 2)::int end;
+$$;
+
+-- How long a service or bundle takes, in minutes. 30 if it can't be found (same as the app).
+create or replace function public.hb_service_mins(p_profile jsonb, p_name text) returns int
+language sql immutable as $$
+  with svc as (
+    select s->>'name' as name,
+      nullif(case when s->>'mins' ~ '^[0-9]+(\.[0-9]+)?$' then round((s->>'mins')::numeric)::int end, 0) as mins
+    from jsonb_array_elements(public.hb_arr(p_profile->'services')) s
+  )
+  select coalesce(
+    (select mins from svc where name = p_name and mins is not null limit 1),
+    (select sum(coalesce((select mins from svc where name = inc and mins is not null limit 1), 30))::int
+       from (select x->'includes' as incs from jsonb_array_elements(public.hb_arr(p_profile->'specials')) x
+             where x->>'kind' = 'bundle' and x->>'name' = p_name limit 1) bdl,
+            jsonb_array_elements_text(public.hb_arr(bdl.incs)) inc),
+    30);
+$$;
+
+-- Every taken time on a day: the owner's own bookings plus clients' requests that are waiting or accepted.
+-- p_skip leaves out one booking (the one a client is moving, so it doesn't clash with itself).
+create or replace function public.hb_taken(p_business uuid, p_date date, p_skip uuid)
+returns table (start_min int, mins int)
+language sql stable security definer set search_path = public as $$
+  with b as (select * from public.businesses where id = p_business)
+  select public.hb_minutes(i->>'time'), public.hb_service_mins(b.profile, i->>'service')
+  from b, jsonb_array_elements(public.hb_arr(b.data->'items')) i
+  where i->>'date' = to_char(p_date, 'YYYY-MM-DD')
+    and i->>'status' in ('booked', 'paid', 'owed')
+    and public.hb_minutes(i->>'time') is not null
+    and (p_skip is null or coalesce(i->>'req', '') <> p_skip::text)
+    and not exists (
+      select 1 from public.booking_requests c
+      where c.id::text = i->>'req' and c.status in ('cancelled', 'cancel_seen', 'declined'))
+  union all
+  select public.hb_minutes(r.time), public.hb_service_mins(b.profile, r.service)
+  from b join public.booking_requests r on r.business_id = b.id
+  where r.date = p_date and r.status in ('new', 'accepted')
+    and (p_skip is null or r.id <> p_skip)
+    and public.hb_minutes(r.time) is not null;
+$$;
+revoke all on function public.hb_taken(uuid, date, uuid) from public, anon, authenticated;
+
+-- Public: which times are taken on a day (start time and length only, no names).
+-- Bundles now block their full length, and bookings already marked paid still hold their time.
+create or replace function public.busy_slots(p_slug text, p_date date)
+returns table (slot_time text, mins int)
+language sql stable security definer set search_path = public as $$
+  select lpad((t.start_min / 60)::text, 2, '0') || ':' || lpad((t.start_min % 60)::text, 2, '0'), t.mins
+  from public.businesses b, public.hb_taken(b.id, p_date, null) t
+  where b.slug = lower(p_slug) and public.owner_has_access(b.owner_id);
+$$;
+
+-- The same, but leaving out the client's own booking while they move it (needs its private id).
+create or replace function public.busy_slots(p_slug text, p_date date, p_skip uuid)
+returns table (slot_time text, mins int)
+language sql stable security definer set search_path = public as $$
+  select lpad((t.start_min / 60)::text, 2, '0') || ':' || lpad((t.start_min % 60)::text, 2, '0'), t.mins
+  from public.businesses b, public.hb_taken(b.id, p_date, p_skip) t
+  where b.slug = lower(p_slug) and public.owner_has_access(b.owner_id);
+$$;
+revoke all on function public.busy_slots(text, date) from public;
+revoke all on function public.busy_slots(text, date, uuid) from public;
+grant execute on function public.busy_slots(text, date) to anon, authenticated;
+grant execute on function public.busy_slots(text, date, uuid) to anon, authenticated;
+
+-- Checks every new booking (from the booking page, or a client moving theirs) before it's saved.
+-- The booking page reads the code at the start of the message (HB_TAKEN, HB_PAST, HB_CLOSED).
+create or replace function public.hb_check_booking()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  b public.businesses;
+  s jsonb;
+  days jsonb;
+  dow int;
+  ds text;
+  st int;
+  len int;
+begin
+  if new.status <> 'new' then return new; end if;
+  -- One booking at a time per business, so two people can't grab the same time together.
+  perform pg_advisory_xact_lock(hashtext('hustle-book:' || new.business_id::text));
+  select * into b from public.businesses where id = new.business_id;
+  if not found then return new; end if;
+  s := coalesce(b.profile->'settings', '{}'::jsonb);
+  st := public.hb_minutes(new.time);
+  if st is null then raise exception 'HB_TAKEN: That time isn''t available.'; end if;
+
+  if (new.date + new.time::time) at time zone 'America/Barbados' <= now() then
+    raise exception 'HB_PAST: That time has already gone. Pick a later time.';
+  end if;
+
+  dow := extract(dow from new.date)::int;
+  days := case when jsonb_typeof(s->'openDays') = 'array' then s->'openDays' else '[1,2,3,4,5,6]'::jsonb end;
+  if not (days @> to_jsonb(dow) or days @> to_jsonb(dow::text)) then
+    raise exception 'HB_CLOSED: They''re closed that day. Pick another day.';
+  end if;
+
+  ds := to_char(new.date, 'YYYY-MM-DD');
+  if exists (
+    select 1 from jsonb_array_elements(public.hb_arr(s->'daysOff')) o
+    where o->>'from' <= ds and ds <= coalesce(nullif(o->>'to', ''), o->>'from')
+  ) then
+    raise exception 'HB_CLOSED: They''re off that day. Pick another day.';
+  end if;
+
+  len := public.hb_service_mins(b.profile, new.service);
+  if exists (
+    select 1 from public.hb_taken(new.business_id, new.date, new.moved_from) t
+    where t.start_min < st + len and st < t.start_min + t.mins
+  ) then
+    raise exception 'HB_TAKEN: Sorry, that time was just booked. Pick another time.';
+  end if;
+  return new;
+end;
+$$;
+revoke all on function public.hb_check_booking() from public, anon, authenticated;
+
+drop trigger if exists hb_check_booking on public.booking_requests;
+create trigger hb_check_booking before insert on public.booking_requests
+  for each row execute function public.hb_check_booking();

@@ -85,7 +85,8 @@
         <label class="full check" id="fRewardWrap" hidden><input type="checkbox" id="fReward"><span id="fRewardText">Use loyalty reward</span></label>
         <label class="full check" id="fDepWrap"><input type="checkbox" id="fDep"><span id="fDepText">Deposit received</span></label>
         <label class="full">Price (BBD)<input id="fPrice" type="number" min="0" step="1" required></label>
-        <button class="primary full" type="submit">Add booking</button>
+        <p class="full err" id="fClash" role="status" hidden></p>
+        <button class="primary full" type="submit" id="fAdd">Add booking</button>
       </form>
     </section>
   </div>
