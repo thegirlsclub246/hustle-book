@@ -86,10 +86,25 @@ $("bkManage").addEventListener("click",async e=>{
   }
 });
 
+// Times already taken on a day. While moving, the client's own booking doesn't count against them.
 async function loadBusy(date){
-  busyFor=date;busy=[];
-  const {data}=await sb.rpc("busy_slots",{p_slug:slug,p_date:date});
-  if(busyFor===date){busy=data||[];renderBook()}
+  if(busyFor!==date)busy=[];
+  busyFor=date;
+  let {data,error}=await sb.rpc("busy_slots",moving&&RID?{p_slug:slug,p_date:date,p_skip:RID}:{p_slug:slug,p_date:date});
+  if(error&&moving)({data,error}=await sb.rpc("busy_slots",{p_slug:slug,p_date:date}));
+  if(busyFor===date&&!error){busy=data||[];renderBook()}
+  return !error;
+}
+// Keep the times fresh while the page is open: other people may book, and times pass.
+setInterval(()=>{if(bk.date&&!sending&&!document.hidden)loadBusy(bk.date)},60000);
+document.addEventListener("visibilitychange",()=>{if(!document.hidden&&bk.date&&!sending)loadBusy(bk.date)});
+// The server says why a booking didn't go through (taken, gone or closed).
+function bookingError(error){
+  const m=String(error&&error.message||"");
+  if(/HB_TAKEN/.test(m))return "Sorry, someone just booked that time. Pick another time.";
+  if(/HB_PAST/.test(m))return "That time has already gone. Pick a later time.";
+  if(/HB_CLOSED/.test(m))return "They're closed that day. Pick another day.";
+  return "";
 }
 function isTaken(t){
   const s=toMin(t),e=s+(bk.service?minsOf(bk.service):30);
@@ -97,7 +112,7 @@ function isTaken(t){
 }
 
 function renderCal(){
-  const S=state.settings,m=new Date(now.getFullYear(),now.getMonth()+calOffset,1),last=addDays(MAX_AHEAD);
+  const S=state.settings,today=iso(new Date()),m=new Date(now.getFullYear(),now.getMonth()+calOffset,1),last=addDays(MAX_AHEAD);
   $("calLabel").textContent=m.toLocaleDateString("en-GB",{month:"long",year:"numeric"});
   $("calPrev").disabled=calOffset<=0;
   $("calNext").disabled=iso(new Date(m.getFullYear(),m.getMonth()+1,1))>last;
@@ -105,8 +120,8 @@ function renderCal(){
   const lead=(m.getDay()+6)%7;for(let k=0;k<lead;k++)h+="<span></span>";
   const dim=new Date(m.getFullYear(),m.getMonth()+1,0).getDate();
   for(let d=1;d<=dim;d++){const dt=new Date(m.getFullYear(),m.getMonth(),d),ds=iso(dt);
-    const closed=!S.openDays.includes(dt.getDay())||!!offOn(S,ds),off=ds<TODAY||ds>last||closed;
-    h+=`<button type="button" data-day="${ds}" aria-pressed="${bk.date===ds}"${off?" disabled":""}${ds===TODAY?' class="today"':""} aria-label="${dt.toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long"})}${closed?", closed":""}">${d}</button>`}
+    const closed=!S.openDays.includes(dt.getDay())||!!offOn(S,ds),off=ds<today||ds>last||closed;
+    h+=`<button type="button" data-day="${ds}" aria-pressed="${bk.date===ds}"${off?" disabled":""}${ds===today?' class="today"':""} aria-label="${dt.toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long"})}${closed?", closed":""}">${d}</button>`}
   $("calGrid").innerHTML=h;
   $("bkDayNote").textContent=bk.date?"You picked "+dateObj(bk.date).toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long"})+".":"Crossed-out days are closed. You can book up to 3 months ahead.";
 }
@@ -127,12 +142,15 @@ function renderBook(){
   $("bkServices").innerHTML=!avail.length?`<p class="note">This business hasn't added any services yet.</p>`
     :grouped?groups.filter(g=>!bkCat||g[0]===bkCat).map(g=>`<h3 class="cathead">${esc(g[0])}</h3><div class="choices">${g[1].map(card).join("")}</div>`).join("")
     :`<div class="choices">${avail.map(card).join("")}</div>`;
+  // A picked day that's now closed or gone (page left open, or the owner just blocked it) is let go.
+  const nw=new Date(),today=iso(nw);
+  if(bk.date&&(bk.date<today||!S.openDays.includes(dateObj(bk.date).getDay())||offOn(S,bk.date))){bk.date=null;bk.time=null}
   renderCal();
-  const len=bk.service?minsOf(bk.service):30,nowM=now.getHours()*60+now.getMinutes();
+  const len=bk.service?minsOf(bk.service):30,nowM=nw.getHours()*60+nw.getMinutes();
   const busyM=busy.map(b=>({start:toMin(b.slot_time),mins:+b.mins||30}));
   // Grid times show even when taken (crossed out); extra times after a booking only show when free.
   const grid=bk.date?startTimes({...S,breakFrom:0,breakTo:0},dateObj(bk.date).getDay(),len,[]):[];
-  const times=!bk.date?[]:startTimes(S,dateObj(bk.date).getDay(),len,busyM).filter(m=>!(bk.date===TODAY&&m<=nowM)).map(m=>pad(Math.floor(m/60))+":"+pad(m%60)).filter(t=>grid.includes(toMin(t))||!isTaken(t));
+  const times=!bk.date?[]:startTimes(S,dateObj(bk.date).getDay(),len,busyM).filter(m=>!(bk.date===today&&m<=nowM)).map(m=>pad(Math.floor(m/60))+":"+pad(m%60)).filter(t=>grid.includes(toMin(t))||!isTaken(t));
   if(bk.time&&(isTaken(bk.time)||!times.includes(bk.time)))bk.time=null;
   const loading=bk.date&&busyFor===bk.date&&!busy.length&&false;
   $("bkTimes").innerHTML=!bk.date?`<span class="note">Pick a day first.</span>`:times.length?times.map(t=>{const taken=isTaken(t);return `<button type="button" class="chip" data-time="${t}" aria-pressed="${bk.time===t}"${taken?` disabled aria-label="${to12(t)}, taken"`:""}>${to12(t)}</button>`}).join(""):`<span class="note">No times left on this day. Try another day.</span>`;
@@ -157,7 +175,7 @@ $("bookView").addEventListener("click",e=>{
   if(b.dataset.cat!==undefined){bkCat=b.dataset.cat;renderBook();return}
   if(b.dataset.sv)bk.service=b.dataset.sv;
   else if(b.dataset.day){bk.date=b.dataset.day;bk.time=null;renderBook();loadBusy(bk.date);return}
-  else if(b.dataset.time)bk.time=b.dataset.time;
+  else if(b.dataset.time){bk.time=b.dataset.time;$("bkErr").hidden=true}
   else return;
   renderBook();
 });
@@ -167,19 +185,25 @@ $("bkSend").addEventListener("click",async()=>{
   if(sending)return;
   const name=$("bkName").value.trim(),phone=$("bkPhone").value.trim(),note=$("bkNote").value.trim();
   const err=m=>{$("bkErr").textContent=m;$("bkErr").hidden=!m};
+  // Check the time is still free right before sending, in case someone else just took it.
+  const stillFree=async()=>{const want=bk.time;await loadBusy(bk.date);if(bk.time===want)return true;err("Sorry, someone just booked that time. Pick another time.");$("bkTimeSection").scrollIntoView({behavior:"smooth"});return false};
   if(moving){
     sending=true;$("bkSend").disabled=true;$("bkSend").textContent="Moving…";
+    if(!(await stillFree())){sending=false;renderBook();return}
     const {data,error}=await sb.rpc("move_my_booking",{p_id:RID,p_date:bk.date,p_time:bk.time});
     sending=false;$("bkSend").disabled=false;
+    if(error&&bookingError(error)){err(bookingError(error));await loadBusy(bk.date);return}
     if(error||!data){err(error?"That didn't go through. Check your internet and try again.":"It's too late to change this booking online. Message them instead.");renderBook();return}
     location.replace(linkFor(data));return;
   }
   if(!name){err("Add your name so they know who's booking.");$("bkName").focus();return}
   if(waNumber(phone).length<7){err("Add your WhatsApp number so they can confirm.");$("bkPhone").focus();return}
   err("");sending=true;$("bkSend").disabled=true;$("bkSend").textContent="Sending…";
+  if(!(await stillFree())){sending=false;renderBook();return}
   const q=quote(),id=newUuid();
   const {error}=await sb.from("booking_requests").insert({id,business_id:biz.id,name,phone,service:bk.service,date:bk.date,time:bk.time,price:q.price,special:q.sp?q.sp.name:null,note:note||null});
   sending=false;$("bkSend").textContent=state.settings.instant?"Book now":"Request this booking";
+  if(error&&bookingError(error)){$("bkSend").disabled=false;err(bookingError(error));await loadBusy(bk.date);$("bkTimeSection").scrollIntoView({behavior:"smooth"});return}
   if(error){$("bkSend").disabled=false;err("That didn't go through. Check your internet and try again.");return}
   const S=state.settings,when=`${prettyDate(bk.date)} at ${to12(bk.time)}`;
   const text=`Hi ${S.name}, I just ${S.instant?"booked":"requested"} a ${bk.service.toLowerCase()} on ${when} through your booking link. My name is ${name}.`;
